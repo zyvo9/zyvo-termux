@@ -226,6 +226,21 @@
             android:layout_gravity="center"
             android:indeterminateTint="@color/text_primary"
             android:visibility="gone" />
+
+        <ImageButton
+            android:id="@+id/btn_scroll_bottom"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_gravity="bottom|end"
+            android:layout_marginEnd="14dp"
+            android:layout_marginBottom="10dp"
+            android:background="@drawable/bg_fab"
+            android:elevation="6dp"
+            android:contentDescription="@string/scroll_to_bottom"
+            android:padding="9dp"
+            android:src="@drawable/ic_chevron_down"
+            android:tint="@color/text_primary"
+            android:visibility="gone" />
     </FrameLayout>
 
     <!-- composer -->
@@ -285,21 +300,21 @@
                     android:tint="@color/text_secondary" />
 
                 <TextView
-                    android:id="@+id/mode_chip"
+                    android:id="@+id/agent_chip"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="2dp"
-                    android:background="@drawable/bg_mode_chip"
-                    android:drawableStart="@drawable/ic_lock"
-                    android:drawablePadding="3dp"
-                    android:drawableTint="@color/warn"
+                    android:background="@drawable/bg_agent_chip"
+                    android:drawableStart="@drawable/ic_spark"
+                    android:drawablePadding="4dp"
+                    android:drawableTint="@color/accent_on_container"
                     android:gravity="center_vertical"
-                    android:paddingStart="8dp"
-                    android:paddingEnd="9dp"
+                    android:paddingStart="9dp"
+                    android:paddingEnd="10dp"
                     android:paddingTop="5dp"
                     android:paddingBottom="5dp"
-                    android:text="@string/mode_full_access"
-                    android:textColor="@color/warn"
+                    android:text="@string/agent_build"
+                    android:textColor="@color/accent_on_container"
                     android:textSize="10sp"
                     android:textStyle="bold" />
 

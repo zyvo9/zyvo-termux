@@ -123,6 +123,11 @@ public final class ApiClient {
     }
 
     public void promptAsync(String sessionId, String text, String variant) throws IOException {
+        promptAsync(sessionId, text, variant, null);
+    }
+
+    public void promptAsync(String sessionId, String text, String variant, String agent)
+            throws IOException {
         JsonObject payload = new JsonObject();
         JsonArray parts = new JsonArray();
         JsonObject part = new JsonObject();
@@ -138,6 +143,10 @@ public final class ApiClient {
 
         if (variant != null && !variant.isEmpty()) {
             payload.addProperty("variant", variant);
+        }
+        // "build" (full tools) or "plan" (read-only planning agent).
+        if (agent != null && !agent.isEmpty()) {
+            payload.addProperty("agent", agent);
         }
 
         Request request = req("/session/" + sessionId + "/prompt_async")

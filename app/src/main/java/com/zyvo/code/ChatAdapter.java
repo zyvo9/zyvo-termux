@@ -285,7 +285,7 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
         bindDiff(h, item.diff);
 
         boolean hasOutput = !TextUtils.isEmpty(item.output);
-        boolean showOutput = hasOutput && (item.expanded || failed);
+        boolean showOutput = hasOutput && (item.expanded || failed || running);
         int maxLines = isShell(item.toolName, item.command) ? 10 : 3;
         boolean overflow = hasOutput && countLines(item.output) > maxLines;
 

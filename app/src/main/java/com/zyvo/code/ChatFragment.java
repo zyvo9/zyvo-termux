@@ -31,6 +31,8 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
 import androidx.core.content.ContextCompat;
+import androidx.core.view.GravityCompat;
+import androidx.drawerlayout.widget.DrawerLayout;
 import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -39,6 +41,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -73,17 +76,21 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
     private View topDot;
     private TextView modelChip;
     private TextView composerModel;
+    private TextView agentChip;
+    private ImageButton scrollBottom;
 
     private EventSource sse;
     private EventSource sseStartedFrom;
     private String sessionId;
-    private String pendingThinkingKey;
     private boolean busy;
 
-    // tool cards of the current turn are grouped under one summary row
-    private ChatItem toolSummary;
-    private int toolGroup;
-    private long turnStart;
+    // only auto-scroll while the user is pinned to the bottom of the transcript
+    private boolean pinnedToBottom = true;
+    // the engine streams the user's own prompt back - skip those echoes
+    private final ArrayDeque<String> sentTexts = new ArrayDeque<>();
+
+    private SessionAdapter sessionAdapter;
+
 
     private final ExecutorService io = Executors.newSingleThreadExecutor();
     private final Handler ui = new Handler(Looper.getMainLooper());
@@ -126,12 +133,47 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
 
         View plus = v.findViewById(R.id.btn_plus);
         if (plus != null) plus.setOnClickListener(this::showPlusMenu);
-        TextView modeChip = v.findViewById(R.id.mode_chip);
-        if (modeChip != null) modeChip.setOnClickListener(view -> openTerminal());
+        agentChip = v.findViewById(R.id.agent_chip);
+        if (agentChip != null) agentChip.setOnClickListener(this::showAgentPicker);
+        refreshAgentChip();
+
+        scrollBottom = v.findViewById(R.id.btn_scroll_bottom);
+        if (scrollBottom != null) {
+            scrollBottom.setOnClickListener(view -> {
+                pinnedToBottom = true;
+                scrollToBottom();
+            });
+        }
+
 
         adapter = new ChatAdapter(requireContext(), items);
         list.setLayoutManager(new LinearLayoutManager(requireContext()));
         list.setAdapter(adapter);
+        list.addOnScrollListener(new RecyclerView.OnScrollListener() {
+            @Override
+            public void onScrolled(@NonNull RecyclerView rv, int dx, int dy) {
+                updatePinned();
+            }
+        });
+
+        RecyclerView sessionList = v.findViewById(R.id.session_list);
+        if (sessionList != null) {
+            sessionAdapter = new SessionAdapter(requireContext(), new SessionAdapter.Listener() {
+                @Override
+                public void onSessionClick(SessionAdapter.Session session) {
+                    openSession(session.id, session.title);
+                    closeDrawer();
+                }
+
+                @Override
+                public void onSessionLongClick(SessionAdapter.Session session) {
+                    sessionActions(session);
+                }
+            });
+            sessionList.setLayoutManager(new LinearLayoutManager(requireContext()));
+            sessionList.setAdapter(sessionAdapter);
+        }
+
 
         View.OnClickListener chipClick = view -> {
             String text = ((TextView) view).getText().toString();
@@ -164,7 +206,7 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
         });
 
         v.findViewById(R.id.btn_new).setOnClickListener(view -> newSession());
-        v.findViewById(R.id.btn_sessions).setOnClickListener(view -> showSessions());
+        v.findViewById(R.id.btn_sessions).setOnClickListener(view -> openSessionsDrawer());
         bannerAction.setOnClickListener(view -> {
             showBanner("Starting engine…", false);
             engine.restart();
@@ -481,6 +523,78 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
         popup.showAtLocation(anchor, Gravity.NO_GRAVITY, x, y);
     }
 
+    private void refreshAgentChip() {
+        if (agentChip == null) return;
+        boolean plan = "plan".equals(prefs.agentMode());
+        agentChip.setText(getString(plan ? R.string.agent_plan : R.string.agent_build));
+    }
+
+    /** Build = full tools; Plan = read-only planning agent (zyvo agent modes). */
+    private void showAgentPicker(View anchor) {
+        final Context ctx = requireContext();
+        final PopupWindow[] holder = new PopupWindow[1];
+
+        LinearLayout card = new LinearLayout(ctx);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setBackgroundResource(R.drawable.bg_popup_card);
+        card.setPadding(dp(6), dp(6), dp(6), dp(6));
+
+        TypedValue tv = new TypedValue();
+        ctx.getTheme().resolveAttribute(android.R.attr.selectableItemBackground, tv, true);
+        int rowBg = tv.resourceId;
+
+        String[] modes = {"build", "plan"};
+        String[] labels = {getString(R.string.agent_build), getString(R.string.agent_plan)};
+        String[] hints = {getString(R.string.agent_build_hint), getString(R.string.agent_plan_hint)};
+
+        for (int i = 0; i < modes.length; i++) {
+            final String mode = modes[i];
+            LinearLayout row = new LinearLayout(ctx);
+            row.setOrientation(LinearLayout.VERTICAL);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            row.setPadding(dp(12), dp(9), dp(12), dp(9));
+            row.setBackgroundResource(rowBg);
+
+            TextView label = new TextView(ctx);
+            label.setText(labels[i]);
+            label.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
+            label.setTextColor(ContextCompat.getColor(ctx,
+                    mode.equals(prefs.agentMode()) ? R.color.text_primary : R.color.text_secondary));
+            label.setTypeface(null, android.graphics.Typeface.BOLD);
+            row.addView(label);
+
+            TextView hint = new TextView(ctx);
+            hint.setText(hints[i]);
+            hint.setTextSize(TypedValue.COMPLEX_UNIT_SP, 10);
+            hint.setTextColor(ContextCompat.getColor(ctx, R.color.text_secondary));
+            row.addView(hint);
+
+            row.setOnClickListener(v -> {
+                prefs.setAgentMode(mode);
+                refreshAgentChip();
+                if (holder[0] != null) holder[0].dismiss();
+            });
+            card.addView(row, new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, dp(52)));
+        }
+
+        int width = dp(240);
+        int height = dp(52) * modes.length + dp(12);
+        PopupWindow popup = new PopupWindow(card, width, height, true);
+        popup.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        popup.setOutsideTouchable(true);
+        popup.setElevation(dp(12));
+        holder[0] = popup;
+
+        int screenW = getResources().getDisplayMetrics().widthPixels;
+        int[] loc = new int[2];
+        anchor.getLocationOnScreen(loc);
+        int x = loc[0];
+        if (x + width > screenW - dp(8)) x = screenW - width - dp(8);
+        if (x < dp(8)) x = dp(8);
+        popup.showAtLocation(anchor, Gravity.NO_GRAVITY, x, loc[1] - dp(132));
+    }
+
     private void refreshModelChips() {
         String name = Models.nameOf(prefs.modelId());
         String variant = prefs.variantOf(prefs.modelId());
@@ -602,9 +716,7 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
                     JsonObject time = info.has("time") && info.get("time").isJsonObject()
                             ? info.getAsJsonObject("time") : null;
                     if (time != null && time.has("completed")) {
-                        removeThinking();
                         finishThoughts();
-                        finalizeToolSummary();
                         setBusy(false);
                     }
                 }
@@ -619,9 +731,7 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
                     }
                 }
             } else if ("session.idle".equals(type)) {
-                removeThinking();
                 finishThoughts();
-                finalizeToolSummary();
                 setBusy(false);
             }
         } catch (Throwable t) {
@@ -642,9 +752,13 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
         if ("text".equals(ptype)) {
             String text = str(part, "text");
             if (TextUtils.isEmpty(text)) return;
+            String mid = str(part, "messageID");
+            if (messageRoles.get(mid) == null && sentTexts.contains(normalize(text))) {
+                messageRoles.put(mid, "user");
+                return;
+            }
             ChatItem item = byKey.get(pid);
             if (item == null) {
-                removeThinking();
                 finishThoughts();
                 item = ChatItem.assistant(pid);
                 addItem(item);
@@ -674,10 +788,8 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
 
             ChatItem item = existing;
             if (item == null) {
-                removeThinking();
-                ensureToolSummary();
+                finishThoughts();
                 item = ChatItem.tool(pid);
-                item.group = toolGroup;
                 addItem(item);
             }
 
@@ -699,7 +811,6 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
             if (TextUtils.isEmpty(text)) return;
             ChatItem item = byKey.get(pid);
             if (item == null) {
-                removeThinking();
                 item = ChatItem.thought(pid);
                 item.expanded = false;
                 addItem(item);
@@ -750,12 +861,8 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
 
         input.setText("");
         addItem(ChatItem.user(text));
-        toolSummary = null;
-        turnStart = 0;
-
-        ChatItem thinking = ChatItem.thought("thinking-" + System.nanoTime());
-        pendingThinkingKey = thinking.key;
-        addItem(thinking);
+        rememberSent(text);
+        pinnedToBottom = true;
 
         setBusy(true);
         scrollToBottom();
@@ -767,17 +874,28 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
                     sessionId = str(created, "id");
                     prefs.setLastSessionId(sessionId);
                 }
-                api.promptAsync(sessionId, text, prefs.variantOf(prefs.modelId()));
+                api.promptAsync(sessionId, text, prefs.variantOf(prefs.modelId()),
+                        prefs.agentMode());
             } catch (Exception e) {
                 final String msg = e.getMessage() == null ? e.toString() : e.getMessage();
                 ui.post(() -> {
-                    removeThinking();
                     addItem(ChatItem.error(msg));
                     setBusy(false);
                 });
             }
         });
     }
+
+    /** The engine streams the user's own prompt back; remember it to skip it. */
+    private void rememberSent(String text) {
+        sentTexts.addLast(normalize(text));
+        while (sentTexts.size() > 20) sentTexts.removeFirst();
+    }
+
+    private static String normalize(String s) {
+        return s == null ? "" : s.trim().replaceAll("\\s+", " ");
+    }
+
 
     private void setBusy(boolean value) {
         busy = value;
@@ -787,31 +905,6 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
             send.setContentDescription(getString(value ? R.string.stop : R.string.send));
         }
         if (value) ui.postDelayed(busyWatchdog, 180_000L);
-    }
-
-    /**
-     * The placeholder spinner row is replaced by the real reasoning part when
-     * it arrives. If no reasoning streamed in, the row disappears like in the
-     * CLI; otherwise it becomes the collapsed "Thought: … · 1.2s" line.
-     */
-    private void removeThinking() {
-        if (pendingThinkingKey == null) return;
-        ChatItem item = byKey.remove(pendingThinkingKey);
-        pendingThinkingKey = null;
-        if (item == null) return;
-        int index = items.indexOf(item);
-        if (index < 0) return;
-        if (TextUtils.isEmpty(item.text)) {
-            items.remove(index);
-            adapter.notifyItemRemoved(index);
-        } else {
-            item.streaming = false;
-            item.expanded = false;
-            if (item.durationMs <= 0) {
-                item.durationMs = System.currentTimeMillis() - item.startMs;
-            }
-            adapter.notifyItemChanged(index);
-        }
     }
 
     /** Stops every still-streaming thought row (reasoning done for this turn). */
@@ -851,8 +944,6 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
         items.clear();
         byKey.clear();
         messageRoles.clear();
-        toolSummary = null;
-        turnStart = 0;
         adapter.notifyDataSetChanged();
         setBusy(false);
         updateEmpty();
@@ -868,8 +959,6 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
         items.clear();
         byKey.clear();
         messageRoles.clear();
-        toolSummary = null;
-        turnStart = 0;
         adapter.notifyDataSetChanged();
         setBusy(false);
         updateEmpty();
@@ -879,44 +968,111 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
         loadMessages(id);
     }
 
-    private void showSessions() {
-        if (engine != null && !engine.isReady()) {
-            UiUtil.toast(requireContext(), "Engine is still starting - one moment");
+    private void openSessionsDrawer() {
+        DrawerLayout drawer = activityDrawer();
+        if (drawer == null) {
+            UiUtil.toast(requireContext(), "Session drawer unavailable");
             return;
         }
+        loadDrawerSessions();
+        drawer.openDrawer(GravityCompat.START);
+    }
+
+    private DrawerLayout activityDrawer() {
+        if (getActivity() == null) return null;
+        return getActivity().findViewById(R.id.drawer_layout);
+    }
+
+    private void closeDrawer() {
+        DrawerLayout drawer = activityDrawer();
+        if (drawer != null) drawer.closeDrawer(GravityCompat.START);
+    }
+
+    private void loadDrawerSessions() {
+        if (sessionAdapter == null || engine == null || !engine.isReady()) return;
         io.execute(() -> {
             try {
                 JsonArray arr = api.listSessions();
-                final List<String> ids = new ArrayList<>();
-                final List<String> titles = new ArrayList<>();
+                final List<SessionAdapter.Session> list = new ArrayList<>();
                 for (JsonElement el : arr) {
                     if (!el.isJsonObject()) continue;
                     JsonObject o = el.getAsJsonObject();
                     String id = str(o, "id");
                     if (TextUtils.isEmpty(id)) continue;
                     String t = str(o, "title");
-                    ids.add(id);
-                    titles.add(TextUtils.isEmpty(t) ? "Untitled" : t);
-                }
-                ui.post(() -> {
-                    if (!isAdded()) return;
-                    if (ids.isEmpty()) {
-                        UiUtil.toast(requireContext(), "No saved chats yet");
-                        return;
+                    long updated = 0;
+                    if (o.has("time") && o.get("time").isJsonObject()) {
+                        updated = num(o.getAsJsonObject("time"), "updated");
                     }
-                    new AlertDialog.Builder(requireContext())
-                            .setTitle(R.string.sessions)
-                            .setItems(titles.toArray(new String[0]),
-                                    (d, w) -> openSession(ids.get(w), titles.get(w)))
-                            .setNegativeButton(android.R.string.cancel, null)
-                            .show();
-                });
-            } catch (Exception e) {
+                    list.add(new SessionAdapter.Session(id,
+                            TextUtils.isEmpty(t) ? "Untitled" : t, updated));
+                }
+                list.sort((a, b) -> Long.compare(b.updated, a.updated));
                 ui.post(() -> {
-                    if (isAdded()) UiUtil.toast(requireContext(), "Could not load chats");
+                    if (!isAdded() || sessionAdapter == null) return;
+                    sessionAdapter.setItems(list);
+                    sessionAdapter.setCurrent(sessionId);
                 });
+            } catch (Exception ignored) {
+                // drawer simply stays empty
             }
         });
+    }
+
+    private void sessionActions(SessionAdapter.Session session) {
+        new AlertDialog.Builder(requireContext())
+                .setTitle(session.title)
+                .setItems(new String[]{getString(R.string.session_rename),
+                        getString(R.string.session_delete)}, (d, which) -> {
+                    if (which == 0) renameSession(session);
+                    else deleteSession(session);
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    private void renameSession(SessionAdapter.Session session) {
+        EditText field = new EditText(requireContext());
+        field.setText(session.title);
+        field.setSelection(field.getText().length());
+        new AlertDialog.Builder(requireContext())
+                .setTitle(R.string.session_rename)
+                .setView(field)
+                .setPositiveButton(R.string.save, (d, w) -> {
+                    String title = field.getText().toString().trim();
+                    if (title.isEmpty()) return;
+                    io.execute(() -> {
+                        try {
+                            api.renameSession(session.id, title);
+                        } catch (Exception ignored) {
+                        }
+                        ui.post(() -> {
+                            loadDrawerSessions();
+                            if (session.id.equals(sessionId) && titleView != null) {
+                                titleView.setText(title);
+                            }
+                        });
+                    });
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    private void deleteSession(SessionAdapter.Session session) {
+        new AlertDialog.Builder(requireContext())
+                .setMessage(session.title)
+                .setPositiveButton(R.string.session_delete, (d, w) -> io.execute(() -> {
+                    try {
+                        api.deleteSession(session.id);
+                    } catch (Exception ignored) {
+                    }
+                    ui.post(() -> {
+                        if (session.id.equals(sessionId)) newSession();
+                        loadDrawerSessions();
+                    });
+                }))
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
     }
 
     private void openTerminal() {
@@ -953,6 +1109,7 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
                         byKey.put(ci.key, ci);
                     }
                     sseLoaded = true;
+                    pinnedToBottom = true;
                     adapter.notifyDataSetChanged();
                     updateEmpty();
                     scrollToBottom();
@@ -1033,58 +1190,10 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
                 }
             }
         }
-        // group consecutive tool cards under one summary row (history view)
-        List<ChatItem> grouped = new ArrayList<>();
-        int g = 0;
-        int i = 0;
-        while (i < out.size()) {
-            ChatItem ci = out.get(i);
-            if (ci.kind == ChatItem.TOOL) {
-                int j = i;
-                while (j < out.size() && out.get(j).kind == ChatItem.TOOL) j++;
-                g++;
-                ChatItem sum = ChatItem.summary(g);
-                int n = j - i;
-                sum.text = getString(R.string.worked_steps_fmt,
-                        n + (n == 1 ? " step" : " steps"));
-                sum.expanded = false;
-                for (int k = i; k < j; k++) out.get(k).group = g;
-                grouped.add(sum);
-                grouped.addAll(out.subList(i, j));
-                i = j;
-            } else {
-                grouped.add(ci);
-                i++;
-            }
-        }
-        return grouped;
+        return out;
     }
 
     // -------------------------------------------------------------- utils
-
-    /** First tool card of a turn: open a "Working…" summary row above it. */
-    private void ensureToolSummary() {
-        if (toolSummary != null) return;
-        toolGroup++;
-        turnStart = System.currentTimeMillis();
-        toolSummary = ChatItem.summary(toolGroup);
-        toolSummary.expanded = true;
-        toolSummary.text = getString(R.string.working);
-        items.add(toolSummary);
-        byKey.put(toolSummary.key, toolSummary);
-        adapter.notifyItemInserted(items.size() - 1);
-    }
-
-    /** Turn finished: collapse the tool cards under "Worked for 2m 56s". */
-    private void finalizeToolSummary() {
-        if (toolSummary == null) return;
-        long span = turnStart > 0 ? System.currentTimeMillis() - turnStart : 0;
-        toolSummary.text = getString(R.string.worked_for_fmt, fmtSpan(span));
-        toolSummary.expanded = false;
-        toolSummary = null;
-        turnStart = 0;
-        adapter.notifyDataSetChanged();
-    }
 
     private static String fmtSpan(long ms) {
         long s = Math.max(1, ms / 1000);
@@ -1099,14 +1208,14 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
         byKey.put(item.key, item);
         adapter.notifyItemInserted(items.size() - 1);
         updateEmpty();
-        scrollToBottom();
+        scrollIfPinned();
     }
 
     private void rebind(ChatItem item) {
         int index = items.indexOf(item);
         if (index >= 0) {
             adapter.notifyItemChanged(index);
-            scrollToBottom();
+            scrollIfPinned();
         }
     }
 
@@ -1116,9 +1225,27 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
         }
     }
 
+    private void scrollIfPinned() {
+        if (pinnedToBottom) scrollToBottom();
+    }
+
     private void scrollToBottom() {
         if (list != null && adapter.getItemCount() > 0) {
-            list.post(() -> list.scrollToPosition(adapter.getItemCount() - 1));
+            list.post(() -> {
+                list.scrollToPosition(adapter.getItemCount() - 1);
+                updatePinned();
+            });
+        }
+    }
+
+    /** Track whether the user is reading history or pinned to the newest row. */
+    private void updatePinned() {
+        if (list == null || adapter == null) return;
+        LinearLayoutManager lm = (LinearLayoutManager) list.getLayoutManager();
+        if (lm == null) return;
+        pinnedToBottom = lm.findLastVisibleItemPosition() >= adapter.getItemCount() - 2;
+        if (scrollBottom != null) {
+            scrollBottom.setVisibility(pinnedToBottom ? View.GONE : View.VISIBLE);
         }
     }
 

@@ -88,6 +88,16 @@ public final class Prefs {
         sp.edit().putString("last_session", id == null ? "" : id).apply();
     }
 
+    /** Primary agent for prompts: "build" (full tools) or "plan" (read-only). */
+    public String agentMode() {
+        String v = sp.getString("agent_mode", null);
+        return v == null || v.isEmpty() ? "build" : v;
+    }
+
+    public void setAgentMode(String mode) {
+        sp.edit().putString("agent_mode", mode == null ? "build" : mode).apply();
+    }
+
     /** Reasoning effort ("low"/"medium"/"high"/…) chosen for one model. */
     public String variantOf(String modelId) {
         return sp.getString("variant_" + modelId, "");
