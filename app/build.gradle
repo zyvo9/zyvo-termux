@@ -131,6 +131,9 @@ android {
     packagingOptions {
         jniLibs {
             useLegacyPackaging true
+            // Bun binaries break when AGP strips them (wrong --version, cwd
+            // read failures at startup), so ship the engine untouched.
+            keepDebugSymbols += "**/libzyvo.so"
         }
     }
 
