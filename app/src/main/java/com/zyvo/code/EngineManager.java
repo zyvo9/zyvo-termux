@@ -169,6 +169,11 @@ public final class EngineManager {
         root.addProperty("$schema", "https://opencode.ai/config.json");
         root.addProperty("model", prefs.providerId() + "/" + prefs.modelId());
 
+        // The bash tool spawns this shell; in the Termux fork it must be
+        // Termux's bash (Android's /bin/sh has no pkg/apt/PATH).
+        File termuxBash = new File(rootDir, "usr/bin/bash");
+        if (termuxBash.exists()) root.addProperty("shell", termuxBash.getAbsolutePath());
+
         // The engine rotates onto these lanes when a quota wall is hit.
         JsonArray fallback = new JsonArray();
         fallback.add("opencode/" + Prefs.DEFAULT_MODEL);
@@ -462,9 +467,21 @@ public final class EngineManager {
         Map<String, String> env = pb.environment();
         String lib = nativeLibDir();
 
+        // Inside the Termux fork the real prefix is <files>/usr, so the engine's
+        // bash tool must see Termux's own PATH and shell or `pkg`/`apt` are
+        // invisible ("pkg: inaccessible or not found").
+        File prefix = new File(rootDir, "usr");
+        String bin = new File(prefix, "bin").getAbsolutePath();
+
         env.put("HOME", homeDir.getAbsolutePath());
-        env.put("PREFIX", rootDir.getAbsolutePath());
-        env.put("PATH", "/system/bin:/system/xbin:" + lib);
+        env.put("PREFIX", prefix.getAbsolutePath());
+        env.put("PATH", bin + ":" + new File(bin, "applets").getAbsolutePath()
+                + ":/system/bin:/system/xbin:" + lib);
+        env.put("SHELL", new File(bin, "bash").getAbsolutePath());
+        env.put("TERMUX__PREFIX", prefix.getAbsolutePath());
+        env.put("TERMUX__HOME", homeDir.getAbsolutePath());
+        env.put("TERMUX_APP__PACKAGE_NAME", "com.termux");
+        env.put("TERMUX_APP__DATA_DIR", rootDir.getParentFile().getAbsolutePath());
         env.put("TMPDIR", tmpDir.getAbsolutePath());
         env.put("TEMP", tmpDir.getAbsolutePath());
         env.put("TMP", tmpDir.getAbsolutePath());
