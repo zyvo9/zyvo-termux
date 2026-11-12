@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ZCode "Zai" dark theme tokens (extracted from the ZCode desktop app). -->
+<resources>
+    <!-- base surfaces -->
+    <color name="bg">#161616</color>
+    <color name="bg_alt">#161616</color>
+    <color name="header">#202020</color>
+    <color name="panel">#202020</color>
+    <color name="card">#2B2B2B</color>
+    <color name="card_alt">#202020</color>
+    <color name="tool_bg">#232323</color>
+    <color name="markdown_code">#2E2E2E</color>
+    <color name="surface">#0DFFFFFF</color>
+    <color name="surface_hover">#1AFFFFFF</color>
+    <color name="selected">#1AFFFFFF</color>
+
+    <!-- text -->
+    <color name="text_primary">#D4D4D4</color>
+    <color name="text_secondary">#99D4D4D4</color>
+    <color name="text_disabled">#66D4D4D4</color>
+    <color name="text_inverse">#000000</color>
+    <color name="link">#60A5FA</color>
+
+    <!-- borders -->
+    <color name="line">#1AFFFFFF</color>
+    <color name="line_strong">#26FFFFFF</color>
+
+    <!-- brand / actions -->
+    <color name="accent">#F8F8F8</color>
+    <color name="accent_dark">#FFFFFF</color>
+    <color name="accent_container">#001D3D</color>
+    <color name="accent_on_container">#D4D4D4</color>
+    <color name="primary">#FFFFFF</color>
+    <color name="on_primary">#000000</color>
+    <color name="secondary">#363636</color>
+    <color name="secondary_text">#D4D4D4</color>
+
+    <!-- status -->
+    <color name="danger">#FF5C5C</color>
+    <color name="danger_surface">#29FF5C5C</color>
+    <color name="ok">#34D399</color>
+    <color name="warn">#F79009</color>
+    <color name="warn_bg">#2A2010</color>
+
+    <!-- chat / code -->
+    <color name="user_bubble">#14FFFFFF</color>
+    <color name="code_bg">#0DFFFFFF</color>
+    <color name="code_text">#D4D4D4</color>
+    <color name="terminal_bg">#161616</color>
+    <color name="terminal_fg">#D4D4D4</color>
+    <color name="terminal_cursor">#F8F8F8</color>
+
+    <color name="white">#FFFFFF</color>
+    <color name="black">#000000</color>
+</resources>

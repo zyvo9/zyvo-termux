@@ -21,10 +21,29 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
+      - name: Fetch zyvo engine
+        run: |
+          set -euo pipefail
+          VER="1.17.9"
+          BASE="https://github.com/zyvo9/ZYVO-AI/releases/download/android-v${VER}"
+          curl -fsSL -o engine.zip "$BASE/zyvo-${VER}-android-aarch64.zip"
+          unzip -q engine.zip
+          U="data/data/com.termux/files/usr"
+          mkdir -p app/src/main/jniLibs/arm64-v8a app/src/main/assets
+          cp "$U/libexec/zyvo/zyvo.bin" app/src/main/jniLibs/arm64-v8a/libzyvo.so
+          for f in "$U"/lib/*.so; do cp "$f" app/src/main/jniLibs/arm64-v8a/; done
+          chmod 755 app/src/main/jniLibs/arm64-v8a/libzyvo.so
+          ls -la app/src/main/jniLibs/arm64-v8a/
+          curl -fsSL -o app/src/main/assets/skills.tar.gz "$BASE/skills.tar.gz"
+          ls -la app/src/main/assets/
+
       - name: Build APK
         env:
           TERMUX_PACKAGE_VARIANT: apt-android-7
-        run: ./gradlew assembleDebug --no-daemon
+        run: >-
+          ./gradlew assembleDebug --no-daemon
+          -PzyvoOpencodeKey="${{ secrets.ZYVO_OPENCODE_KEY }}"
+          -PzyvoGatewayKey="${{ secrets.ZYVO_GATEWAY_KEY }}"
 
       - name: Publish APK
         env:

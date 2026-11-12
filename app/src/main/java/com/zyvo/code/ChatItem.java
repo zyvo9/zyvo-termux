@@ -1,0 +1,89 @@
+package com.zyvo.code;
+
+/** One bubble in the conversation. */
+public final class ChatItem {
+
+    public static final int USER = 0;
+    public static final int ASSISTANT = 1;
+    public static final int TOOL = 2;
+    public static final int ERROR = 3;
+    public static final int SUMMARY = 4;
+    public static final int THOUGHT = 5;
+
+    public int kind;
+    public String key = "";
+    public String label = "";
+    public String text = "";
+    public String toolName = "";
+    public String command = "";
+    public String output = "";
+    public String status = "";
+    public String diff = "";
+    public String title = "";
+    public boolean expanded = false;
+    public boolean full = false;
+    public boolean error = false;
+    /** Tool cards belonging to one "Worked for ..." summary share a group. */
+    public int group = 0;
+    public long timeMs = 0;
+
+    // thinking rows
+    public long startMs = 0;
+    public long durationMs = 0;
+    public boolean streaming = false;
+
+    public static ChatItem user(String text) {
+        ChatItem i = new ChatItem();
+        i.kind = USER;
+        i.text = text;
+        i.key = "u-" + System.nanoTime();
+        i.timeMs = System.currentTimeMillis();
+        return i;
+    }
+
+    public static ChatItem assistant(String key) {
+        ChatItem i = new ChatItem();
+        i.kind = ASSISTANT;
+        i.key = key;
+        i.label = "ZYVO";
+        i.timeMs = System.currentTimeMillis();
+        return i;
+    }
+
+    public static ChatItem tool(String key) {
+        ChatItem i = new ChatItem();
+        i.kind = TOOL;
+        i.key = key;
+        return i;
+    }
+
+    public static ChatItem summary(int group) {
+        ChatItem i = new ChatItem();
+        i.kind = SUMMARY;
+        i.key = "sum-" + group;
+        i.group = group;
+        i.expanded = true;
+        i.timeMs = System.currentTimeMillis();
+        return i;
+    }
+
+    public static ChatItem thought(String key) {
+        ChatItem i = new ChatItem();
+        i.kind = THOUGHT;
+        i.key = key;
+        i.streaming = true;
+        i.startMs = System.currentTimeMillis();
+        return i;
+    }
+
+    public static ChatItem error(String text) {
+        ChatItem i = new ChatItem();
+        i.kind = ERROR;
+        i.key = "e-" + System.nanoTime();
+        i.label = "ERROR";
+        i.text = text;
+        i.error = true;
+        i.timeMs = System.currentTimeMillis();
+        return i;
+    }
+}

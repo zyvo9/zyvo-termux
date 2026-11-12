@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/summary_row"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:clickable="true"
+    android:focusable="true"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingStart="13dp"
+    android:paddingEnd="13dp"
+    android:paddingTop="7dp"
+    android:paddingBottom="5dp">
+
+    <ImageView
+        android:id="@+id/summary_chevron"
+        android:layout_width="13dp"
+        android:layout_height="13dp"
+        android:contentDescription="@null"
+        android:src="@drawable/ic_chevron_down"
+        android:tint="@color/text_secondary" />
+
+    <TextView
+        android:id="@+id/summary_text"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="5dp"
+        android:text="Worked for 3m 40s"
+        android:textColor="@color/text_secondary"
+        android:textSize="12sp" />
+
+</LinearLayout>
