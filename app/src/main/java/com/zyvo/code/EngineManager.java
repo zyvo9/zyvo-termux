@@ -1,4 +1,4 @@
-﻿package com.zyvo.code;
+package com.zyvo.code;
 
 import android.content.Context;
 import android.os.Handler;
