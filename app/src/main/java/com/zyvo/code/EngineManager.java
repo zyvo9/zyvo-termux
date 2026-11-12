@@ -1,4 +1,4 @@
-package com.zyvo.code;
+﻿package com.zyvo.code;
 
 import android.content.Context;
 import android.os.Handler;
@@ -182,7 +182,7 @@ public final class EngineManager {
         root.add("fallback_models", fallback);
 
         // The app IS the approval surface, and the user already granted the
-        // phone-level permissions — so the agent never stalls on a prompt.
+        // phone-level permissions â€” so the agent never stalls on a prompt.
         JsonObject permission = new JsonObject();
         String[] keys = {"read", "edit", "glob", "grep", "list", "bash", "task",
                 "external_directory", "todowrite", "question", "webfetch", "websearch",
@@ -438,7 +438,7 @@ public final class EngineManager {
             if (process != null && !process.isAlive() && !probeHealth()) {
                 String tail = tailLog(6).trim();
                 setState(State.ERROR, tail.isEmpty()
-                        ? "engine exited during startup — open logs"
+                        ? "engine exited during startup â€” open logs"
                         : "engine exited: " + tail.replace('\n', ' '));
                 return;
             }
@@ -471,13 +471,13 @@ public final class EngineManager {
         // bash tool must see Termux's own PATH and shell or `pkg`/`apt` are
         // invisible ("pkg: inaccessible or not found").
         File prefix = new File(rootDir, "usr");
-        String bin = new File(prefix, "bin").getAbsolutePath();
+        String termuxBin = new File(prefix, "bin").getAbsolutePath();
 
         env.put("HOME", homeDir.getAbsolutePath());
         env.put("PREFIX", prefix.getAbsolutePath());
-        env.put("PATH", bin + ":" + new File(bin, "applets").getAbsolutePath()
+        env.put("PATH", termuxBin + ":" + new File(termuxBin, "applets").getAbsolutePath()
                 + ":/system/bin:/system/xbin:" + lib);
-        env.put("SHELL", new File(bin, "bash").getAbsolutePath());
+        env.put("SHELL", new File(termuxBin, "bash").getAbsolutePath());
         env.put("TERMUX__PREFIX", prefix.getAbsolutePath());
         env.put("TERMUX__HOME", homeDir.getAbsolutePath());
         env.put("TERMUX_APP__PACKAGE_NAME", "com.termux");
@@ -526,7 +526,7 @@ public final class EngineManager {
                 }
             }
         } catch (IOException ignored) {
-            // process died — handled by the health loop
+            // process died â€” handled by the health loop
         }
     }
 
@@ -609,9 +609,10 @@ public final class EngineManager {
         }
     }
 
-    /** Debug helper used by Settings → About. */
+    /** Debug helper used by Settings â†’ About. */
     public String describe() {
         return "binary=" + binaryPath() + "\nhome=" + homeDir + "\nworkspace=" + workspaceDir
                 + "\nstate=" + state + " (" + detail + ")";
     }
 }
+
