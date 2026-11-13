@@ -86,6 +86,22 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
 
     // only auto-scroll while the user is pinned to the bottom of the transcript
     private boolean pinnedToBottom = true;
+    private long workingStartMs;
+    private final Runnable workingTick = new Runnable() {
+        @Override
+        public void run() {
+            for (int i = 0; i < items.size(); i++) {
+                ChatItem it = items.get(i);
+                if (it.kind != ChatItem.WORKING) continue;
+                long secs = Math.max(1, (System.currentTimeMillis() - workingStartMs) / 1000);
+                it.text = getString(R.string.working) + " \u00B7 " + secs + "s";
+                adapter.notifyItemChanged(i);
+                break;
+            }
+            if (busy) ui.postDelayed(this, 1000);
+        }
+    };
+
     /** Reveals streamed assistant text a few characters at a time (no jumps). */
     private final Runnable revealTick = new Runnable() {
         @Override
@@ -795,9 +811,6 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
         // The engine also streams the user's own message back - never render it twice.
         if ("user".equals(messageRoles.get(str(part, "messageID")))) return;
         String ptype = str(part, "type");
-        if ("text".equals(ptype) || "tool".equals(ptype) || "reasoning".equals(ptype)) {
-            removeWorking();
-        }
 
         if ("text".equals(ptype)) {
             String text = str(part, "text");
@@ -915,7 +928,12 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
         input.setText("");
         addItem(ChatItem.user(text));
         rememberSent(text);
-        addItem(ChatItem.working());
+        workingStartMs = System.currentTimeMillis();
+        ChatItem work = ChatItem.working();
+        work.text = getString(R.string.working);
+        addItem(work);
+        ui.removeCallbacks(workingTick);
+        ui.postDelayed(workingTick, 1000);
         pinnedToBottom = true;
 
         setBusy(true);
@@ -1321,6 +1339,7 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
 
     /** Drops the "Working." row once a real part (thinking, tool, text) arrives. */
     private void removeWorking() {
+        ui.removeCallbacks(workingTick);
         for (int i = 0; i < items.size(); i++) {
             if (items.get(i).kind == ChatItem.WORKING) {
                 ChatItem removed = items.remove(i);
