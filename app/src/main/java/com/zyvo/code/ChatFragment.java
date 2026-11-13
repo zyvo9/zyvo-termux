@@ -976,6 +976,13 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
         }
     }
 
+    private static int countLines(String s) {
+        if (s == null || s.isEmpty()) return 0;
+        int n = 1;
+        for (int i = 0; i < s.length(); i++) if (s.charAt(i) == '\n') n++;
+        return n;
+    }
+
     private static boolean isBookkeeping(String toolName, String path) {
         String n = toolName == null ? "" : toolName.toLowerCase(Locale.ROOT);
         boolean writer = n.contains("write") || n.contains("edit") || n.contains("patch");
