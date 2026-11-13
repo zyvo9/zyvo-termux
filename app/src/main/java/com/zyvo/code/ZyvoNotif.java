@@ -67,13 +67,13 @@ public final class ZyvoNotif {
 
         Intent wake = new Intent(ctx, TermuxService.class);
         wake.setAction(wakeHeld
-                ? TermuxConstants.TERMUX_SERVICE.ACTION_WAKE_UNLOCK
-                : TermuxConstants.TERMUX_SERVICE.ACTION_WAKE_LOCK);
+                ? TermuxConstants.TERMUX_APP.TERMUX_SERVICE.ACTION_WAKE_UNLOCK
+                : TermuxConstants.TERMUX_APP.TERMUX_SERVICE.ACTION_WAKE_LOCK);
         PendingIntent wakeIntent = PendingIntent.getService(ctx, 1, wake,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
         Intent exit = new Intent(ctx, TermuxService.class);
-        exit.setAction(TermuxConstants.TERMUX_SERVICE.ACTION_STOP_SERVICE);
+        exit.setAction(TermuxConstants.TERMUX_APP.TERMUX_SERVICE.ACTION_STOP_SERVICE);
         PendingIntent exitIntent = PendingIntent.getService(ctx, 2, exit,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
