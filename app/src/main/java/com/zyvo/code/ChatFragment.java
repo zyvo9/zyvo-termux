@@ -86,6 +86,33 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
 
     // only auto-scroll while the user is pinned to the bottom of the transcript
     private boolean pinnedToBottom = true;
+    /** Reveals streamed assistant text a few characters at a time (no jumps). */
+    private final Runnable revealTick = new Runnable() {
+        @Override
+        public void run() {
+            boolean active = false;
+            for (int i = 0; i < items.size(); i++) {
+                ChatItem it = items.get(i);
+                if (it.kind != ChatItem.ASSISTANT) continue;
+                if (it.fullText == null || it.shown >= it.fullText.length()) continue;
+                int backlog = it.fullText.length() - it.shown;
+                int step = Math.max(3, backlog / 8);
+                int next = Math.min(it.fullText.length(), it.shown + step);
+                while (next < it.fullText.length()
+                        && !Character.isWhitespace(it.fullText.charAt(next))) {
+                    next++;
+                }
+                it.shown = next;
+                it.text = it.fullText.substring(0, next);
+                adapter.notifyItemChanged(i);
+                active = true;
+            }
+            if (active) {
+                scrollIfPinned();
+                ui.postDelayed(this, 32);
+            }
+        }
+    };
     private boolean autoScrolling;
     private final Runnable autoScrollDone = new Runnable() {
         @Override
@@ -205,6 +232,7 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
             if (busy) {
                 setBusy(false);
                 removeWorking();
+                flushReveal();
                 if (sessionId != null) {
                     final String sid = sessionId;
                     io.execute(() -> api.abort(sid));
@@ -785,7 +813,10 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
                 item = ChatItem.assistant(pid);
                 addItem(item);
             }
-            item.text = text;
+            item.fullText = text;
+            if (item.shown > text.length()) item.shown = 0;
+            if (item.shown == 0) item.text = "";
+            startReveal();
             rebind(item);
 
         } else if ("tool".equals(ptype)) {
@@ -889,6 +920,7 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
 
         setBusy(true);
         scrollToBottom();
+        ui.postDelayed(this::scrollToBottom, 90);
 
         io.execute(() -> {
             try {
@@ -1175,6 +1207,8 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
                     } else {
                         ChatItem item = ChatItem.assistant(pid);
                         item.text = text;
+                        item.fullText = text;
+                        item.shown = text.length();
                         out.add(item);
                     }
                 } else if ("tool".equals(ptype)) {
@@ -1256,23 +1290,33 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
     private void scrollToBottom() {
         if (list == null || adapter == null || adapter.getItemCount() == 0) return;
         final RecyclerView rv = list;
-        rv.post(() -> {
-            if (adapter.getItemCount() == 0) return;
-            rv.scrollToPosition(adapter.getItemCount() - 1);
-            rv.post(() -> {
-                int dy = rv.computeVerticalScrollRange()
-                        - rv.computeVerticalScrollExtent()
-                        - rv.computeVerticalScrollOffset();
-                if (dy <= 0) {
-                    updatePinned();
-                    return;
-                }
-                autoScrolling = true;
-                ui.removeCallbacks(autoScrollDone);
-                rv.smoothScrollBy(0, dy);
-                ui.postDelayed(autoScrollDone, 420);
-            });
+        rv.postOnAnimation(() -> {
+            int dy = rv.computeVerticalScrollRange()
+                    - rv.computeVerticalScrollExtent()
+                    - rv.computeVerticalScrollOffset();
+            if (dy > 0) rv.scrollBy(0, dy);
+            updatePinned();
         });
+    }
+
+    private void startReveal() {
+        ui.removeCallbacks(revealTick);
+        ui.postDelayed(revealTick, 32);
+    }
+
+    /** Shows the remaining text immediately (turn finished). */
+    private void flushReveal() {
+        ui.removeCallbacks(revealTick);
+        for (int i = 0; i < items.size(); i++) {
+            ChatItem it = items.get(i);
+            if (it.kind != ChatItem.ASSISTANT || it.fullText == null) continue;
+            if (it.shown < it.fullText.length()) {
+                it.shown = it.fullText.length();
+                it.text = it.fullText;
+                adapter.notifyItemChanged(i);
+            }
+        }
+        scrollIfPinned();
     }
 
     /** Drops the "Working." row once a real part (thinking, tool, text) arrives. */

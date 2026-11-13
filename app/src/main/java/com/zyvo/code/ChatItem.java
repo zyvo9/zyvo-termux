@@ -15,6 +15,9 @@ public final class ChatItem {
     public String key = "";
     public String label = "";
     public String text = "";
+    /** Full text received from the engine; {@link #shown} chars are revealed so far. */
+    public String fullText = "";
+    public int shown = 0;
     public String toolName = "";
     public String command = "";
     public String output = "";

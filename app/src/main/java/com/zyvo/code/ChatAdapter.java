@@ -154,13 +154,19 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
             return;
         }
 
-        markwon.setMarkdown(h.text, item.text == null ? "" : item.text);
+        boolean revealing = item.fullText != null && item.fullText.length() > item.shown;
+        if (revealing) {
+            // word-by-word reveal: cheap plain text, no markdown re-parse per frame
+            h.text.setText(item.text == null ? "" : item.text);
+        } else {
+            markwon.setMarkdown(h.text, item.text == null ? "" : item.text);
+        }
         h.text.setTextColor(ContextCompat.getColor(ctx,
                 item.error ? R.color.danger : R.color.text_primary));
 
-        boolean hasText = !TextUtils.isEmpty(item.text);
+        boolean hasText = !TextUtils.isEmpty(item.text) && !revealing;
         h.actions.setVisibility(hasText ? View.VISIBLE : View.GONE);
-        h.time.setText(stamp(item.timeMs));
+        h.time.setText(revealing ? "" : stamp(item.timeMs));
 
         if (hasText) {
             h.btnCopy.setOnClickListener(v -> {
