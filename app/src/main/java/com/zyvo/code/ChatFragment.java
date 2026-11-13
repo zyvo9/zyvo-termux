@@ -777,9 +777,9 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
                     JsonObject time = info.has("time") && info.get("time").isJsonObject()
                             ? info.getAsJsonObject("time") : null;
                     if (time != null && time.has("completed")) {
+                        // per-message completion fires after every agent step; the
+                        // turn is only over on session.idle (keeps Working visible).
                         finishThoughts();
-                        removeWorking();
-                        setBusy(false);
                     }
                 }
             } else if (type.startsWith("permission")) {
