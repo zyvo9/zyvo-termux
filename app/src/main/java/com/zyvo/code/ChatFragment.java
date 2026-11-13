@@ -921,6 +921,12 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
             // CLI hides bookkeeping writes (AGENTS.md / SKILL.md / vault notes).
             if (existing == null && isBookkeeping(toolName, cmd)) return;
 
+            // The engine's task list renders as one live card, never a tool row.
+            if (isTodoTool(toolName) && inp.has("todos") && inp.get("todos").isJsonArray()) {
+                applyTodos(inp.getAsJsonArray("todos"));
+                return;
+            }
+
             ChatItem item = existing;
             if (item == null) {
                 finishThoughts();
@@ -977,6 +983,41 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
             }
             rebind(item);
         }
+    }
+
+    private static boolean isTodoTool(String toolName) {
+        if (toolName == null) return false;
+        String n = toolName.toLowerCase(Locale.ROOT);
+        return n.contains("todo");
+    }
+
+    /** Merge the engine's latest todo list into the single live card. */
+    private void applyTodos(JsonArray arr) {
+        ChatItem card = null;
+        for (int i = items.size() - 1; i >= 0; i--) {
+            if (items.get(i).kind == ChatItem.TODO) {
+                card = items.get(i);
+                break;
+            }
+        }
+        if (card == null) {
+            card = ChatItem.todoCard();
+            addItem(card);
+        }
+        card.todos = parseTodos(arr);
+        rebind(card);
+    }
+
+    private static List<ChatItem.Todo> parseTodos(JsonArray arr) {
+        List<ChatItem.Todo> list = new ArrayList<>();
+        for (JsonElement e : arr) {
+            if (!e.isJsonObject()) continue;
+            JsonObject o = e.getAsJsonObject();
+            String content = str(o, "content");
+            if (TextUtils.isEmpty(content)) continue;
+            list.add(new ChatItem.Todo(content, str(o, "status")));
+        }
+        return list;
     }
 
     private static int countLines(String s) {
@@ -1440,6 +1481,21 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
                             str(inp, "path"), str(inp, "pattern"));
                     if (cmd.isEmpty()) cmd = str(state, "title");
                     if (isBookkeeping(toolName, cmd)) continue;
+                    if (isTodoTool(toolName) && inp.has("todos") && inp.get("todos").isJsonArray()) {
+                        ChatItem card = null;
+                        for (int i = out.size() - 1; i >= 0; i--) {
+                            if (out.get(i).kind == ChatItem.TODO) {
+                                card = out.get(i);
+                                break;
+                            }
+                        }
+                        if (card == null) {
+                            card = ChatItem.todoCard();
+                            out.add(card);
+                        }
+                        card.todos = parseTodos(inp.getAsJsonArray("todos"));
+                        continue;
+                    }
                     ChatItem item = ChatItem.tool(pid);
                     item.toolName = toolName;
                     item.status = str(state, "status");

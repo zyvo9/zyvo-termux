@@ -49,6 +49,7 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
     private static final int V_SUMMARY = 3;
     private static final int V_THOUGHT = 4;
     private static final int V_WORKING = 5;
+    private static final int V_TODO = 6;
 
     static final String[] FRAMES = {"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"};
 
@@ -109,6 +110,8 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
                 return V_THOUGHT;
             case ChatItem.WORKING:
                 return V_WORKING;
+            case ChatItem.TODO:
+                return V_TODO;
             default:
                 return V_ASSISTANT;
         }
@@ -133,6 +136,9 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
         if (viewType == V_WORKING) {
             return new WorkingVH(inf.inflate(R.layout.item_working, parent, false));
         }
+        if (viewType == V_TODO) {
+            return new TodoVH(inf.inflate(R.layout.item_todo, parent, false));
+        }
         return new MessageVH(inf.inflate(R.layout.item_message_assistant, parent, false));
     }
 
@@ -149,6 +155,8 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
             bindTool((ToolVH) holder, item, position);
         } else if (holder instanceof ThoughtVH) {
             bindThought((ThoughtVH) holder, item, position);
+        } else if (holder instanceof TodoVH) {
+            bindTodo((TodoVH) holder, item);
         }
     }
 
@@ -331,8 +339,47 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
         h.header.setClickable(toggleable);
     }
 
-    // ------------------------------------------------------------- summary
+    // ------------------------------------------------------------------ todo
 
+    private void bindTodo(TodoVH h, ChatItem item) {
+        animateIn(h.itemView, item);
+        java.util.List<ChatItem.Todo> todos = item.todos;
+        if (todos == null || todos.isEmpty()) {
+            h.itemView.setVisibility(View.GONE);
+            return;
+        }
+        h.itemView.setVisibility(View.VISIBLE);
+        int done = 0;
+        for (ChatItem.Todo t : todos) {
+            if ("completed".equals(t.status) || "cancelled".equals(t.status)) done++;
+        }
+        h.count.setText(done + "/" + todos.size());
+        h.rows.removeAllViews();
+        for (ChatItem.Todo t : todos) {
+            boolean completed = "completed".equals(t.status);
+            boolean cancelled = "cancelled".equals(t.status);
+            boolean active = "in_progress".equals(t.status);
+            String glyph = completed ? "✓ " : cancelled ? "✕ " : active ? "◐ " : "○ ";
+            TextView row = new TextView(ctx);
+            row.setText(glyph + t.content);
+            row.setTextSize(12);
+            row.setLineSpacing(dp(2), 1f);
+            row.setPadding(0, dp(3), 0, dp(3));
+            row.setTextColor(ContextCompat.getColor(ctx,
+                    completed || cancelled ? R.color.text_disabled
+                            : active ? R.color.text_primary : R.color.text_secondary));
+            if (completed || cancelled) {
+                row.setPaintFlags(row.getPaintFlags() | android.graphics.Paint.STRIKE_THRU_TEXT_FLAG);
+            }
+            h.rows.addView(row);
+        }
+    }
+
+    private int dp(int v) {
+        return Math.round(v * ctx.getResources().getDisplayMetrics().density);
+    }
+
+    // ------------------------------------------------------------- summary
     private void bindSummary(SummaryVH h, ChatItem item, int position) {
         h.text.setText(TextUtils.isEmpty(item.text)
                 ? ctx.getString(R.string.working) : item.text);
@@ -603,6 +650,17 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
         WorkingVH(@NonNull View v) {
             super(v);
             text = v.findViewById(R.id.working_text);
+        }
+    }
+
+    static final class TodoVH extends RecyclerView.ViewHolder {
+        final TextView count;
+        final android.widget.LinearLayout rows;
+
+        TodoVH(@NonNull View v) {
+            super(v);
+            count = v.findViewById(R.id.todo_count);
+            rows = v.findViewById(R.id.todo_rows);
         }
     }
 

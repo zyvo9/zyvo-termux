@@ -10,6 +10,20 @@ public final class ChatItem {
     public static final int SUMMARY = 4;
     public static final int THOUGHT = 5;
     public static final int WORKING = 6;
+    public static final int TODO = 7;
+
+    /** One row of the engine's todo list. */
+    public static final class Todo {
+        public final String content;
+        public final String status;
+
+        public Todo(String content, String status) {
+            this.content = content == null ? "" : content;
+            this.status = status == null ? "pending" : status;
+        }
+    }
+
+    public java.util.List<Todo> todos = null;
 
     public int kind;
     public String key = "";
@@ -92,6 +106,14 @@ public final class ChatItem {
         i.key = "working";
         i.label = "Working";
         i.timeMs = System.currentTimeMillis();
+        return i;
+    }
+
+    /** Single live card that the engine's todo list keeps updating. */
+    public static ChatItem todoCard() {
+        ChatItem i = new ChatItem();
+        i.kind = TODO;
+        i.key = "todos";
         return i;
     }
 
