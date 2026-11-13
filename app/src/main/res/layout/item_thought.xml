@@ -19,14 +19,13 @@
         android:paddingTop="2dp"
         android:paddingBottom="2dp">
 
-        <TextView
+        <ImageView
             android:id="@+id/thought_spinner"
-            android:layout_width="16dp"
-            android:layout_height="wrap_content"
-            android:fontFamily="monospace"
-            android:text="⠋"
-            android:textColor="@color/warn"
-            android:textSize="13sp" />
+            android:layout_width="15dp"
+            android:layout_height="15dp"
+            android:contentDescription="@null"
+            android:src="@drawable/ic_lc_brain"
+            android:tint="@color/warn" />
 
         <TextView
             android:id="@+id/thought_title"

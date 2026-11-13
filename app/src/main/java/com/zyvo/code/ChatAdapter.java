@@ -218,7 +218,8 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
             h.startTicker();
         } else {
             h.stopTicker();
-            h.spinner.setVisibility(View.GONE);
+            h.spinner.setVisibility(View.VISIBLE);
+            h.spinner.setAlpha(0.75f);
             StringBuilder sb = new StringBuilder(ctx.getString(R.string.thought));
             if (hasTitle) sb.append(": ").append(item.title);
             String d = fmtDuration(item.durationMs);
@@ -406,22 +407,30 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
         return "Tool";
     }
 
+    /** Lucide glyph per tool class (extracted from ZCode's icon set, ISC). */
     private static int iconFor(String tool, String command) {
         String n = tool == null ? "" : tool.toLowerCase(Locale.ROOT);
         if (n.contains("bash") || n.contains("shell") || n.contains("exec")
-                || n.contains("terminal")) return R.drawable.ic_terminal;
-        if (n.contains("edit") || n.contains("write") || n.contains("patch")) {
-            return R.drawable.ic_edit;
+                || n.contains("terminal")) return R.drawable.ic_lc_terminal;
+        if (n.contains("todo")) return R.drawable.ic_lc_list_checks;
+        if (n.contains("glob") || n.contains("find")) return R.drawable.ic_lc_folder_search;
+        if (n.equals("read") || n.startsWith("read_") || n.endsWith("read")) {
+            return R.drawable.ic_lc_file_text;
         }
-        if (n.contains("grep") || n.contains("search") || n.contains("find")
-                || n.contains("glob")) {
-            return R.drawable.ic_search;
+        if (n.contains("edit") || n.contains("write") || n.contains("patch")) {
+            return R.drawable.ic_lc_pen_line;
         }
         if (n.contains("web") || n.contains("fetch") || n.contains("http")) {
-            return R.drawable.ic_globe;
+            return R.drawable.ic_lc_globe;
         }
-        if (command != null && !command.isEmpty()) return R.drawable.ic_terminal;
-        return R.drawable.ic_wrench;
+        if (n.contains("grep") || n.contains("search")) return R.drawable.ic_lc_search;
+        if (n.contains("diff")) return R.drawable.ic_lc_file_diff;
+        if (n.contains("task") || n.contains("agent") || n.contains("subagent")) {
+            return R.drawable.ic_lc_bot;
+        }
+        if (n.contains("skill")) return R.drawable.ic_lc_sparkles;
+        if (command != null && !command.isEmpty()) return R.drawable.ic_lc_terminal;
+        return R.drawable.ic_lc_wrench;
     }
 
     // ------------------------------------------------------------ holders
@@ -490,7 +499,7 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
 
     static final class ThoughtVH extends TickingVH {
         final View header;
-        final TextView spinner;
+        final ImageView spinner;
         final TextView title;
         final TextView body;
         final ImageView chevron;
@@ -502,12 +511,14 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
             title = v.findViewById(R.id.thought_title);
             body = v.findViewById(R.id.thought_body);
             chevron = v.findViewById(R.id.thought_chevron);
-            spinner.setText(ChatAdapter.FRAMES[0]);
         }
 
         @Override
         void onFrame(String frame) {
-            spinner.setText(frame);
+            // soft pulse instead of a braille spinner: the brain breathes while it thinks
+            double t = (System.currentTimeMillis() % 1400) / 1400.0;
+            float pulse = (float) (0.55 + 0.45 * (0.5 - 0.5 * Math.cos(2 * Math.PI * t)));
+            spinner.setAlpha(pulse);
         }
     }
 
