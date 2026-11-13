@@ -15,7 +15,15 @@ local `C:\Users\Admin\zyvo-termux`.
 - Local machine has NO Android SDK — CI is the only compiler. Brace-balance check
   before push: `python -c "s=open(f).read(); print(s.count('{')-s.count('}'))"`.
 
-## Current state (2026-11-13, apk-21 = 3486f08)
+## Current state (2026-11-13, apk-22 = 98c2e24)
+- Dark-first: `ChatActivity.onCreate` forces `MODE_NIGHT_YES` (Zai dark tokens
+  in `values-night/zyvo_colors.xml` now always active).
+- Tool icons = lucide set copied from ZCode as `res/drawable/ic_lc_*.xml`
+  (24×24, stroke 2, tint at runtime); `ChatAdapter.iconFor()` maps tool name →
+  glyph (todo → list-checks, glob → folder-search, read → file-text, write/edit
+  → pen-line, web → globe, grep → search, task → bot, skill → sparkles).
+- Thought rows: braille spinner replaced by `ic_lc_brain` that pulses
+  (alpha 0.55↔1, 1.4 s cosine) while streaming, static 0.75 when done.
 - Single notification `ZyvoNotif` (channel `zyvo_engine`, id 4101, Awake/Exit);
   Exit = engine + EngineService + terminal stop (full app exit).
 - Error surfacing (apk-21): `session.error` + `message.updated.info.error` →
@@ -66,3 +74,11 @@ main CSS `out/renderer/assets/styles-NK68EN_n.css`, 480KB, 59 keyframes).
   click helper `shot_zcode.ps1` / `click_shot.ps1` (SetForegroundWindow is
   unreliable — Windows blocks foreground steal; verify before trusting clicks).
 - Next: P2 dark default + tool icons, then P3 own motion (NOT ZCode keyframes).
+
+## adb / device
+- Wireless debugging screen shows the VPN address (10.8.0.x) — UNREACHABLE from
+  the PC. Take the SAME port it shows and use the phone's LAN IP:
+  `adb connect 192.168.1.109:<port>` (LAN IP changes; `Test-Connection` each
+  candidate). mdns discovery is often empty — don't wait on it.
+- Install: `adb -s <ip:port> install -r -d <apk>`; screenshot:
+  `shell screencap -p /sdcard/x.png` then `pull`.
