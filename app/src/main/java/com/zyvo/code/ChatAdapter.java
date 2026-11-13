@@ -156,8 +156,10 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
 
         boolean revealing = item.fullText != null && item.fullText.length() > item.shown;
         if (revealing) {
-            // word-by-word reveal: cheap plain text, no markdown re-parse per frame
-            h.text.setText(item.text == null ? "" : item.text);
+            // word-by-word reveal: cheap plain text, no markdown re-parse per frame.
+            // Markers are stripped so the live view reads clean; the finished text
+            // is re-rendered as full markdown (headings, tables, bullets).
+            h.text.setText(plainMarkdown(item.text));
         } else {
             markwon.setMarkdown(h.text, item.text == null ? "" : item.text);
         }
@@ -178,6 +180,52 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
                 }
             });
         }
+    }
+
+    /**
+     * Cheap single-pass markdown stripper for the streaming view: drops emphasis
+     * markers, heading hashes and code fences, turns list dashes into bullets.
+     * No regex, no allocation per line beyond the result builder.
+     */
+    private static String plainMarkdown(String s) {
+        if (s == null || s.isEmpty()) return "";
+        StringBuilder out = new StringBuilder(s.length());
+        int i = 0;
+        boolean lineStart = true;
+        while (i < s.length()) {
+            char c = s.charAt(i);
+            if (lineStart) {
+                int j = i;
+                while (j < s.length() && (s.charAt(j) == ' ' || s.charAt(j) == '\t')) j++;
+                int h = j;
+                while (h < s.length() && s.charAt(h) == '#') h++;
+                if (h > j && h < s.length() && s.charAt(h) == ' ') {
+                    i = h + 1;
+                    continue;
+                }
+                if (j < s.length() && (s.charAt(j) == '-' || s.charAt(j) == '*' || s.charAt(j) == '+')
+                        && j + 1 < s.length() && s.charAt(j + 1) == ' ') {
+                    out.append("• ");
+                    i = j + 2;
+                    lineStart = false;
+                    continue;
+                }
+                if (j < s.length() && s.charAt(j) == '>' && j + 1 < s.length()
+                        && s.charAt(j + 1) == ' ') {
+                    i = j + 2;
+                    continue;
+                }
+                lineStart = false;
+            }
+            if (c == '*' || c == '`') {
+                i++;
+                continue;
+            }
+            out.append(c);
+            lineStart = c == '\n';
+            i++;
+        }
+        return out.toString();
     }
 
     private String stamp(long ms) {
@@ -289,18 +337,18 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
 
         h.icon.setImageResource(iconFor(item.toolName, item.command));
         h.icon.setColorFilter(ContextCompat.getColor(ctx,
-                failed ? R.color.danger : R.color.text_secondary));
+                failed ? R.color.danger : R.color.text_disabled));
 
         h.name.setText(titleFor(item.toolName, item.command));
         h.name.setTextColor(ContextCompat.getColor(ctx,
-                failed ? R.color.danger : R.color.text_primary));
+                failed ? R.color.danger : R.color.text_secondary));
 
         String detail = !TextUtils.isEmpty(item.label) ? item.label : item.command;
         if (TextUtils.isEmpty(detail)) detail = firstLine(item.output);
         h.command.setText(detail == null ? "" : detail);
         h.command.setVisibility(TextUtils.isEmpty(detail) ? View.GONE : View.VISIBLE);
         h.command.setTextColor(ContextCompat.getColor(ctx,
-                failed ? R.color.danger : R.color.text_secondary));
+                failed ? R.color.danger : R.color.text_disabled));
 
         bindDiff(h, item.diff);
 
