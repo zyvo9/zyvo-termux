@@ -2,12 +2,19 @@ package com.zyvo.code;
 
 import com.termux.R;
 
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.Intent;
+import android.graphics.Typeface;
 import android.os.Build;
 import android.os.Bundle;
+import android.util.TypedValue;
 import android.view.Window;
 import android.view.WindowManager;
+import android.widget.ScrollView;
+import android.widget.TextView;
 
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 import androidx.core.view.GravityCompat;
@@ -45,6 +52,10 @@ public final class ChatActivity extends AppCompatActivity {
         });
         findViewById(R.id.btn_drawer_terminal).setOnClickListener(v -> {
             openTerminal();
+            closeDrawer();
+        });
+        findViewById(R.id.btn_drawer_log).setOnClickListener(v -> {
+            showEngineLog();
             closeDrawer();
         });
         findViewById(R.id.btn_drawer_settings).setOnClickListener(v -> {
@@ -86,6 +97,41 @@ public final class ChatActivity extends AppCompatActivity {
         } catch (Throwable t) {
             UiUtil.toast(this, "Settings are not available");
         }
+    }
+
+    /**
+     * Plain debug surface: the tail of the engine's own stderr/stdout. When a
+     * turn dies silently this is the only place that says why.
+     */
+    private void showEngineLog() {
+        String tail = EngineManager.get(this).tailLog(250);
+        if (tail == null || tail.trim().isEmpty()) tail = "No engine output yet.";
+        final String text = tail;
+
+        int pad = Math.round(16 * getResources().getDisplayMetrics().density);
+        TextView view = new TextView(this);
+        view.setPadding(pad, pad, pad, pad);
+        view.setTextSize(TypedValue.COMPLEX_UNIT_SP, 10);
+        view.setTypeface(Typeface.MONOSPACE);
+        view.setTextIsSelectable(true);
+        view.setText(text);
+
+        ScrollView scroll = new ScrollView(this);
+        scroll.addView(view);
+
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.engine_logs)
+                .setView(scroll)
+                .setPositiveButton(android.R.string.ok, null)
+                .setNeutralButton(R.string.copy, (d, w) -> {
+                    ClipboardManager cm = (ClipboardManager)
+                            getSystemService(CLIPBOARD_SERVICE);
+                    if (cm != null) {
+                        cm.setPrimaryClip(ClipData.newPlainText("engine log", text));
+                        UiUtil.toast(this, getString(R.string.copied));
+                    }
+                })
+                .show();
     }
 
     @Override

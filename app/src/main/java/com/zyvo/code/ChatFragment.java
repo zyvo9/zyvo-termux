@@ -146,6 +146,36 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
     private final ExecutorService io = Executors.newSingleThreadExecutor();
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final Runnable busyWatchdog = () -> setBusy(false);
+
+    // A turn that produces no event at all is almost always a provider quota
+    // wall (the engine retries the lane silently). Say so instead of spinning.
+    private long lastSignalMs;
+    private boolean stallWarned;
+    private String lastReportedError = "";
+    private long lastReportedAt;
+    private final Runnable stallTick = new Runnable() {
+        @Override
+        public void run() {
+            if (!busy) return;
+            if (hasRunningTool()) {
+                // a long command (pkg install, build) is legitimately silent
+                lastSignalMs = System.currentTimeMillis();
+                ui.postDelayed(this, 5000L);
+                return;
+            }
+            long idle = System.currentTimeMillis() - lastSignalMs;
+            if (idle > 150_000L) {
+                failTurn("No response from the model for " + (idle / 1000) + "s.");
+                return;
+            }
+            if (idle > 40_000L && !stallWarned) {
+                stallWarned = true;
+                showBanner("Waiting for the model — no reply yet (" + (idle / 1000)
+                        + "s). The free lane may be rate-limited. Tap Stop to cancel.", false);
+            }
+            ui.postDelayed(this, 5000L);
+        }
+    };
     private final Runnable reconnect = () -> {
         if (isAdded() && engine != null && engine.isReady()) connectStream();
     };
@@ -688,10 +718,12 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
                     showBanner("Starting engine — " + detail, false);
                     break;
                 case STOPPED:
+                    if (busy) reportError("Engine stopped while the turn was running.");
                     showBanner("Engine stopped", true);
                     closeStream();
                     break;
                 case ERROR:
+                    if (busy) reportError("Engine error: " + detail);
                     showBanner("Engine error: " + detail, true);
                     closeStream();
                     break;
@@ -783,6 +815,21 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
                         finishThoughts();
                     }
                 }
+                String evSid = str(info, "sessionID");
+                if (sessionId == null || evSid.isEmpty() || sessionId.equals(evSid)) {
+                    lastSignalMs = System.currentTimeMillis();
+                    if (info.has("error") && !info.get("error").isJsonNull()) {
+                        String err = errorText(info.get("error"));
+                        if (!err.isEmpty()) reportError(err);
+                    }
+                }
+            } else if ("session.error".equals(type)) {
+                String sid = str(props, "sessionID");
+                if (sessionId == null || sid.isEmpty() || sessionId.equals(sid)) {
+                    String err = props.has("error") ? errorText(props.get("error")) : "";
+                    if (err.isEmpty()) err = errorText(props);
+                    reportError(err);
+                }
             } else if (type.startsWith("permission")) {
                 String pid = str(props, "id");
                 String sid = str(props, "sessionID");
@@ -794,6 +841,7 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
                     }
                 }
             } else if ("session.idle".equals(type)) {
+                lastSignalMs = System.currentTimeMillis();
                 finishThoughts();
                 removeWorking();
                 setBusy(false);
@@ -806,6 +854,7 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
     private void handlePart(JsonObject part) {
         String sid = str(part, "sessionID");
         if (sessionId != null && !sid.isEmpty() && !sessionId.equals(sid)) return;
+        lastSignalMs = System.currentTimeMillis();
 
         String pid = str(part, "id");
         if (TextUtils.isEmpty(pid)) return;
@@ -929,6 +978,7 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
         input.setText("");
         addItem(ChatItem.user(text));
         rememberSent(text);
+        banner.setVisibility(View.GONE);
         workingStartMs = System.currentTimeMillis();
         ChatItem work = ChatItem.working();
         work.text = getString(R.string.working);
@@ -975,11 +1025,104 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
     private void setBusy(boolean value) {
         busy = value;
         ui.removeCallbacks(busyWatchdog);
+        ui.removeCallbacks(stallTick);
         if (send != null) {
             send.setImageResource(value ? R.drawable.ic_stop : R.drawable.ic_arrow_up);
             send.setContentDescription(getString(value ? R.string.stop : R.string.send));
         }
-        if (value) ui.postDelayed(busyWatchdog, 180_000L);
+        if (value) {
+            lastSignalMs = System.currentTimeMillis();
+            stallWarned = false;
+            ui.postDelayed(busyWatchdog, 180_000L);
+            ui.postDelayed(stallTick, 5000L);
+        }
+    }
+
+    /** A tool is mid-run, so silence is expected — do not treat it as a stall. */
+    private boolean hasRunningTool() {
+        for (int i = 0; i < items.size(); i++) {
+            ChatItem it = items.get(i);
+            if (it.kind == ChatItem.TOOL && "running".equals(it.status)) return true;
+        }
+        return false;
+    }
+
+    /**
+     * Ends a turn that produced nothing and explains it in plain words: the
+     * engine keeps retrying a rate-limited lane silently, which used to look
+     * like the app simply hanging.
+     */
+    private void failTurn(String reason) {
+        finishThoughts();
+        removeWorking();
+        setBusy(false);
+        addItem(ChatItem.error(reason + "\n\n"
+                + "Most likely the free lane hit its quota (rate limit).\n"
+                + "Fix: switch mobile data / Wi-Fi for a fresh IP, then send again.\n"
+                + "Drawer → Engine logs shows the raw engine output."));
+        showBanner("Model did not answer — see Engine logs", false);
+        if (sessionId != null) {
+            final String sid = sessionId;
+            io.execute(() -> api.abort(sid));
+        }
+    }
+
+    /** Shows a real engine/provider error as an error card (never silently). */
+    private void reportError(String raw) {
+        String text = friendlyError(raw);
+        long now = System.currentTimeMillis();
+        if (text.equals(lastReportedError) && now - lastReportedAt < 10_000L) return;
+        lastReportedError = text;
+        lastReportedAt = now;
+        finishThoughts();
+        removeWorking();
+        setBusy(false);
+        addItem(ChatItem.error(text));
+        showBanner("Engine reported an error — see chat", false);
+    }
+
+    /** Turns provider JSON into a plain-language hint plus the raw text. */
+    private static String friendlyError(String raw) {
+        String s = raw == null ? "" : raw.trim();
+        String low = s.toLowerCase(Locale.ROOT);
+        if (low.contains("freeusagelimit") || low.contains("usage limit")
+                || low.contains("rate limit") || low.contains("rate-limit")
+                || low.contains("429")) {
+            return "Free lane limit reached (rate limit).\n"
+                    + "Switch mobile data / Wi-Fi for a fresh IP, then send again.\n\n" + s;
+        }
+        if (low.contains("unauthorized") || low.contains("401") || low.contains("invalid api key")) {
+            return "The lane key was rejected (auth).\n"
+                    + "Open Settings and check the API key.\n\n" + s;
+        }
+        return s.isEmpty() ? "The engine reported an error." : s;
+    }
+
+    /** Digs the human message out of an engine error object. */
+    private static String errorText(JsonElement el) {
+        return errorText(el, 0);
+    }
+
+    private static String errorText(JsonElement el, int depth) {
+        if (el == null || el.isJsonNull() || depth > 5) return "";
+        if (el.isJsonPrimitive()) {
+            try {
+                return el.getAsString();
+            } catch (Exception e) {
+                return "";
+            }
+        }
+        if (!el.isJsonObject()) return el.toString();
+        JsonObject o = el.getAsJsonObject();
+        String m = str(o, "message");
+        if (!m.isEmpty()) return m;
+        for (String key : new String[]{"data", "error", "cause"}) {
+            if (o.has(key)) {
+                String nested = errorText(o.get(key), depth + 1);
+                if (!nested.isEmpty()) return nested;
+            }
+        }
+        return o.toString();
     }
 
     /** Stops every still-streaming thought row (reasoning done for this turn). */

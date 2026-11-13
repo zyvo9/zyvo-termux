@@ -85,6 +85,7 @@ public final class EngineManager {
 
     private Process process;
     private Thread logThread;
+    private volatile boolean stopping;
     private volatile State state = State.STOPPED;
     private volatile String detail = "not started";
     private volatile String engineVersion = "";
@@ -122,7 +123,15 @@ public final class EngineManager {
     }
 
     public boolean isReady() {
-        return state == State.READY;
+        if (state != State.READY) return false;
+        // A READY state that outlives its process lies to the watchdog and to
+        // the send button: the server is gone and nothing ever restarts it.
+        if (process != null && !process.isAlive()) {
+            process = null;
+            setState(State.ERROR, "engine process exited");
+            return false;
+        }
+        return true;
     }
 
     public void addListener(Listener l) {
@@ -374,7 +383,11 @@ public final class EngineManager {
     // ------------------------------------------------------------- process
 
     public void ensureStarted() {
-        if (state == State.READY) return;
+        if (state == State.READY) {
+            if (process == null || process.isAlive()) return;
+            // process died while we believed the engine was up - restart it
+            setState(State.ERROR, "engine process exited");
+        }
         if (!starting.compareAndSet(false, true)) return;
         Thread t = new Thread(() -> {
             try {
@@ -526,8 +539,16 @@ public final class EngineManager {
                 }
             }
         } catch (IOException ignored) {
-            // process died â€” handled by the health loop
+            // process died — handled by the health loop
         }
+        // The log stream closes when the child exits (or when stop() kills it).
+        // Flip the state here so the watchdog and the UI stop believing a dead
+        // engine is READY.
+        if (!stopping && process != null && !process.isAlive()) {
+            process = null;
+            if (state != State.STOPPED) setState(State.ERROR, "engine process exited");
+        }
+    }
     }
 
     private void appendLog(String line) {
@@ -581,12 +602,17 @@ public final class EngineManager {
     }
 
     public void stop() {
-        if (process != null) {
-            try {
-                process.destroy();
-            } catch (Throwable ignored) {
+        stopping = true;
+        try {
+            if (process != null) {
+                try {
+                    process.destroy();
+                } catch (Throwable ignored) {
+                }
+                process = null;
             }
-            process = null;
+        } finally {
+            stopping = false;
         }
         setState(State.STOPPED, "stopped");
     }
