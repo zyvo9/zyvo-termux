@@ -930,6 +930,9 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
 
             item.toolName = toolName;
             item.status = str(state, "status");
+            // The first event often arrives before the input JSON is parsed, so the
+            // path is only known a beat later - hide bookkeeping rows then.
+            if (isBookkeeping(toolName, cmd)) item.hidden = true;
             item.command = cmd;
             item.diff = str(state, "diff");
             // While a write/edit is still streaming the engine may already expose
@@ -1053,7 +1056,6 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
 
 
     private void setBusy(boolean value) {
-        boolean wasBusy = busy;
         busy = value;
         ui.removeCallbacks(busyWatchdog);
         ui.removeCallbacks(stallTick);
@@ -1061,7 +1063,18 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
             send.setImageResource(value ? R.drawable.ic_stop : R.drawable.ic_arrow_up);
             send.setContentDescription(getString(value ? R.string.stop : R.string.send));
         }
-        if (workingBar != null) workingBar.setVisibility(value ? View.VISIBLE : View.GONE);
+        if (workingBar != null) {
+            if (value) {
+                workingBar.setVisibility(View.VISIBLE);
+            } else if (workingStartMs > 0 && workingBarText != null) {
+                // turn finished: same spot keeps the total time instead of the spinner
+                workingBarText.setText(getString(R.string.worked_for_fmt,
+                        shortDuration(System.currentTimeMillis() - workingStartMs)));
+                workingBar.setVisibility(View.VISIBLE);
+            } else {
+                workingBar.setVisibility(View.GONE);
+            }
+        }
         if (workingSpinner != null) {
             workingSpinner.setVisibility(value ? View.VISIBLE : View.GONE);
         }
@@ -1073,11 +1086,6 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
             ui.postDelayed(workingTick, 1000);
             ui.postDelayed(busyWatchdog, 180_000L);
             ui.postDelayed(stallTick, 5000L);
-        } else if (wasBusy && workingStartMs > 0 && workingBarText != null && workingBar != null) {
-            // turn finished: same spot keeps the total time instead of the spinner
-            workingBarText.setText(getString(R.string.worked_for_fmt,
-                    shortDuration(System.currentTimeMillis() - workingStartMs)));
-            workingBar.setVisibility(View.VISIBLE);
         }
     }
 

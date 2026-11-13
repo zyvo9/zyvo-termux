@@ -342,9 +342,14 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
             h.stopTicker();
             return;
         }
-
         boolean running = "running".equals(item.status) || "pending".equals(item.status);
         boolean failed = item.error || "error".equals(item.status);
+
+        if (item.hidden) {
+            h.itemView.setVisibility(View.GONE);
+            h.stopTicker();
+            return;
+        }
 
         h.spinner.setVisibility(running ? View.VISIBLE : View.GONE);
         h.icon.setVisibility(running ? View.GONE : View.VISIBLE);

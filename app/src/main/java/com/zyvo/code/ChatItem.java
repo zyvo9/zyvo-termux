@@ -26,6 +26,8 @@ public final class ChatItem {
     /** Live line count while a write/edit streams (shown as +N before the diff lands). */
     public int liveLines = 0;
     public String title = "";
+    /** Bookkeeping writes (AGENTS.md / SKILL.md / vault) stay invisible. */
+    public boolean hidden = false;
     public boolean expanded = false;
     public boolean full = false;
     public boolean error = false;
