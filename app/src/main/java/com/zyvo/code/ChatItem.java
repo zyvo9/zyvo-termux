@@ -9,6 +9,7 @@ public final class ChatItem {
     public static final int ERROR = 3;
     public static final int SUMMARY = 4;
     public static final int THOUGHT = 5;
+    public static final int WORKING = 6;
 
     public int kind;
     public String key = "";
@@ -73,6 +74,15 @@ public final class ChatItem {
         i.key = key;
         i.streaming = true;
         i.startMs = System.currentTimeMillis();
+        return i;
+    }
+
+    public static ChatItem working() {
+        ChatItem i = new ChatItem();
+        i.kind = WORKING;
+        i.key = "working";
+        i.label = "Working";
+        i.timeMs = System.currentTimeMillis();
         return i;
     }
 

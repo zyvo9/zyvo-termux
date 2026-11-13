@@ -86,6 +86,14 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
 
     // only auto-scroll while the user is pinned to the bottom of the transcript
     private boolean pinnedToBottom = true;
+    private boolean autoScrolling;
+    private final Runnable autoScrollDone = new Runnable() {
+        @Override
+        public void run() {
+            autoScrolling = false;
+            updatePinned();
+        }
+    };
     // the engine streams the user's own prompt back - skip those echoes
     private final ArrayDeque<String> sentTexts = new ArrayDeque<>();
 
@@ -154,6 +162,14 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
             public void onScrolled(@NonNull RecyclerView rv, int dx, int dy) {
                 updatePinned();
             }
+
+            @Override
+            public void onScrollStateChanged(@NonNull RecyclerView rv, int newState) {
+                if (newState == RecyclerView.SCROLL_STATE_DRAGGING) {
+                    autoScrolling = false;
+                    ui.removeCallbacks(autoScrollDone);
+                }
+            }
         });
 
         RecyclerView sessionList = v.findViewById(R.id.session_list);
@@ -188,6 +204,7 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
         send.setOnClickListener(view -> {
             if (busy) {
                 setBusy(false);
+                removeWorking();
                 if (sessionId != null) {
                     final String sid = sessionId;
                     io.execute(() -> api.abort(sid));
@@ -717,6 +734,7 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
                             ? info.getAsJsonObject("time") : null;
                     if (time != null && time.has("completed")) {
                         finishThoughts();
+                        removeWorking();
                         setBusy(false);
                     }
                 }
@@ -732,6 +750,7 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
                 }
             } else if ("session.idle".equals(type)) {
                 finishThoughts();
+                removeWorking();
                 setBusy(false);
             }
         } catch (Throwable t) {
@@ -748,6 +767,9 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
         // The engine also streams the user's own message back - never render it twice.
         if ("user".equals(messageRoles.get(str(part, "messageID")))) return;
         String ptype = str(part, "type");
+        if ("text".equals(ptype) || "tool".equals(ptype) || "reasoning".equals(ptype)) {
+            removeWorking();
+        }
 
         if ("text".equals(ptype)) {
             String text = str(part, "text");
@@ -862,6 +884,7 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
         input.setText("");
         addItem(ChatItem.user(text));
         rememberSent(text);
+        addItem(ChatItem.working());
         pinnedToBottom = true;
 
         setBusy(true);
@@ -879,6 +902,7 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
             } catch (Exception e) {
                 final String msg = e.getMessage() == null ? e.toString() : e.getMessage();
                 ui.post(() -> {
+                    removeWorking();
                     addItem(ChatItem.error(msg));
                     setBusy(false);
                 });
@@ -1230,11 +1254,36 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
     }
 
     private void scrollToBottom() {
-        if (list != null && adapter.getItemCount() > 0) {
-            list.post(() -> {
-                list.scrollToPosition(adapter.getItemCount() - 1);
-                updatePinned();
+        if (list == null || adapter == null || adapter.getItemCount() == 0) return;
+        final RecyclerView rv = list;
+        rv.post(() -> {
+            if (adapter.getItemCount() == 0) return;
+            rv.scrollToPosition(adapter.getItemCount() - 1);
+            rv.post(() -> {
+                int dy = rv.computeVerticalScrollRange()
+                        - rv.computeVerticalScrollExtent()
+                        - rv.computeVerticalScrollOffset();
+                if (dy <= 0) {
+                    updatePinned();
+                    return;
+                }
+                autoScrolling = true;
+                ui.removeCallbacks(autoScrollDone);
+                rv.smoothScrollBy(0, dy);
+                ui.postDelayed(autoScrollDone, 420);
             });
+        });
+    }
+
+    /** Drops the "Working." row once a real part (thinking, tool, text) arrives. */
+    private void removeWorking() {
+        for (int i = 0; i < items.size(); i++) {
+            if (items.get(i).kind == ChatItem.WORKING) {
+                ChatItem removed = items.remove(i);
+                byKey.remove(removed.key);
+                adapter.notifyItemRemoved(i);
+                return;
+            }
         }
     }
 
@@ -1243,6 +1292,11 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
         if (list == null || adapter == null) return;
         LinearLayoutManager lm = (LinearLayoutManager) list.getLayoutManager();
         if (lm == null) return;
+        if (autoScrolling) {
+            pinnedToBottom = true;
+            if (scrollBottom != null) scrollBottom.setVisibility(View.GONE);
+            return;
+        }
         pinnedToBottom = lm.findLastVisibleItemPosition() >= adapter.getItemCount() - 2;
         if (scrollBottom != null) {
             scrollBottom.setVisibility(pinnedToBottom ? View.GONE : View.VISIBLE);

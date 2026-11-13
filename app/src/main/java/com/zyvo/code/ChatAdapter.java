@@ -48,6 +48,7 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
     private static final int V_TOOL = 2;
     private static final int V_SUMMARY = 3;
     private static final int V_THOUGHT = 4;
+    private static final int V_WORKING = 5;
 
     static final String[] FRAMES = {"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"};
 
@@ -86,6 +87,8 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
                 return V_TOOL;
             case ChatItem.THOUGHT:
                 return V_THOUGHT;
+            case ChatItem.WORKING:
+                return V_WORKING;
             default:
                 return V_ASSISTANT;
         }
@@ -107,6 +110,9 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
         if (viewType == V_THOUGHT) {
             return new ThoughtVH(inf.inflate(R.layout.item_thought, parent, false));
         }
+        if (viewType == V_WORKING) {
+            return new WorkingVH(inf.inflate(R.layout.item_working, parent, false));
+        }
         return new MessageVH(inf.inflate(R.layout.item_message_assistant, parent, false));
     }
 
@@ -117,6 +123,8 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
             bindMessage((MessageVH) holder, item);
         } else if (holder instanceof SummaryVH) {
             bindSummary((SummaryVH) holder, item, position);
+        } else if (holder instanceof WorkingVH) {
+            bindWorking((WorkingVH) holder, item);
         } else if (holder instanceof ToolVH) {
             bindTool((ToolVH) holder, item, position);
         } else if (holder instanceof ThoughtVH) {
@@ -187,6 +195,11 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
     }
 
     // ------------------------------------------------------------- thought
+
+    private void bindWorking(WorkingVH h, ChatItem item) {
+        h.text.setText(TextUtils.isEmpty(item.text)
+                ? ctx.getString(R.string.working) : item.text);
+    }
 
     private void bindThought(ThoughtVH h, ChatItem item, int position) {
         boolean hasTitle = !TextUtils.isEmpty(item.title);
@@ -457,6 +470,15 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
 
         void stopTicker() {
             handler.removeCallbacks(ticker);
+        }
+    }
+
+    static final class WorkingVH extends RecyclerView.ViewHolder {
+        final TextView text;
+
+        WorkingVH(@NonNull View v) {
+            super(v);
+            text = v.findViewById(R.id.working_text);
         }
     }
 
