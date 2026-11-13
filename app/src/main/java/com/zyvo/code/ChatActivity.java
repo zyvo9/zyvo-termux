@@ -52,6 +52,13 @@ public final class ChatActivity extends AppCompatActivity {
             closeDrawer();
         });
 
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        // Also restarts the foreground engine service after the user taps Exit in
+        // the notification and later comes back to the app.
         startEngine();
     }
 

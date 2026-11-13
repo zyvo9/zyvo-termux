@@ -29,8 +29,8 @@ import androidx.core.app.NotificationCompat;
 public final class EngineService extends Service implements EngineManager.Listener {
 
     private static final String TAG = "ZyvoEngineService";
-    public static final String CHANNEL_ID = "zyvo_engine";
-    public static final int NOTIF_ID = 4101;
+    public static final String CHANNEL_ID = ZyvoNotif.CHANNEL_ID;
+    public static final int NOTIF_ID = ZyvoNotif.ID;
 
     private EngineManager engine;
     private PowerManager.WakeLock wakeLock;
@@ -51,7 +51,7 @@ public final class EngineService extends Service implements EngineManager.Listen
     public void onCreate() {
         super.onCreate();
         engine = EngineManager.get(this);
-        createChannel();
+        ZyvoNotif.ensureChannel(this);
         startForegroundCompat(buildNotification("Starting engine…"));
         engine.addListener(this);
 
@@ -71,32 +71,9 @@ public final class EngineService extends Service implements EngineManager.Listen
         return START_STICKY;
     }
 
-    private void createChannel() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
-        NotificationManager nm = getSystemService(NotificationManager.class);
-        if (nm == null) return;
-        NotificationChannel ch = new NotificationChannel(CHANNEL_ID, "Zyvo engine",
-                NotificationManager.IMPORTANCE_LOW);
-        ch.setDescription("Keeps the zyvo agent running");
-        ch.setShowBadge(false);
-        nm.createNotificationChannel(ch);
-    }
-
     private Notification buildNotification(String text) {
-        Intent open = new Intent(this, ChatActivity.class);
-        open.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
-        PendingIntent pi = PendingIntent.getActivity(this, 0, open,
-                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-
-        return new NotificationCompat.Builder(this, CHANNEL_ID)
-                .setSmallIcon(R.drawable.ic_terminal)
-                .setContentTitle("Zyvo Code")
-                .setContentText(text)
-                .setContentIntent(pi)
-                .setOngoing(true)
-                .setOnlyAlertOnce(true)
-                .setPriority(NotificationCompat.PRIORITY_LOW)
-                .build();
+        ZyvoNotif.setText(this, text);
+        return ZyvoNotif.build(this);
     }
 
     private void startForegroundCompat(Notification n) {
@@ -108,8 +85,7 @@ public final class EngineService extends Service implements EngineManager.Listen
     }
 
     private void updateNotification(String text) {
-        NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
-        if (nm != null) nm.notify(NOTIF_ID, buildNotification(text));
+        ZyvoNotif.setText(this, text);
     }
 
     @Override
@@ -137,6 +113,7 @@ public final class EngineService extends Service implements EngineManager.Listen
         handler.removeCallbacks(watchdog);
         if (engine != null) engine.removeListener(this);
         if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();
+        stopForeground(true);
         super.onDestroy();
     }
 

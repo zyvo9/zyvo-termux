@@ -49,6 +49,10 @@ import com.termux.terminal.TerminalEmulator;
 import com.termux.terminal.TerminalSession;
 import com.termux.terminal.TerminalSessionClient;
 
+import com.zyvo.code.EngineManager;
+import com.zyvo.code.EngineService;
+import com.zyvo.code.ZyvoNotif;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -63,7 +67,7 @@ import java.util.List;
  * as wanted by the user this service is a foreground service, {@link Service#startForeground(int, Notification)}.
  * <p/>
  * Optionally may hold a wake and a wifi lock, in which case that is shown in the notification - see
- * {@link #buildNotification()}.
+ * the shared Zyvo Code notification.
  */
 public final class TermuxService extends Service implements AppShell.AppShellClient, TermuxSession.TermuxSessionClient {
 
@@ -200,15 +204,22 @@ public final class TermuxService extends Service implements AppShell.AppShellCli
         return false;
     }
 
-    /** Make service run in foreground mode. */
+    /** Make service run in foreground mode (shares the single Zyvo Code notification). */
     private void runStartForeground() {
-        setupNotificationChannel();
-        startForeground(TermuxConstants.TERMUX_APP_NOTIFICATION_ID, buildNotification());
+        ZyvoNotif.ensureChannel(this);
+        startForeground(ZyvoNotif.ID, ZyvoNotif.build(this));
     }
 
     /** Make service leave foreground mode. */
     private void runStopForeground() {
-        stopForeground(true);
+        // The engine service owns the same notification slot. While it is alive the
+        // notification must stay posted, so only detach it; otherwise remove it.
+        boolean engineAlive = false;
+        try {
+            engineAlive = EngineManager.get(this).isReady();
+        } catch (Throwable ignored) {
+        }
+        stopForeground(!engineAlive);
     }
 
     /** Request to stop service. */
@@ -222,6 +233,15 @@ public final class TermuxService extends Service implements AppShell.AppShellCli
     private void actionStopService() {
         mWantsToStop = true;
         killAllTermuxExecutionCommands();
+        // Exit from the shared notification quits the whole app: stop the engine too.
+        try {
+            EngineManager.get(this).stop();
+        } catch (Throwable ignored) {
+        }
+        try {
+            stopService(new Intent(this, EngineService.class));
+        } catch (Throwable ignored) {
+        }
         requestStopService();
     }
 
@@ -779,72 +799,14 @@ public final class TermuxService extends Service implements AppShell.AppShellCli
 
 
 
-    private Notification buildNotification() {
-        Resources res = getResources();
-
-        // Set pending intent to be launched when notification is clicked
-        Intent notificationIntent = TermuxActivity.newInstance(this);
-        PendingIntent contentIntent = PendingIntent.getActivity(this, 0, notificationIntent, 0);
-
-
-        // Set notification text
-        int sessionCount = getTermuxSessionsSize();
-        int taskCount = mShellManager.mTermuxTasks.size();
-        String notificationText = sessionCount + " session" + (sessionCount == 1 ? "" : "s");
-        if (taskCount > 0) {
-            notificationText += ", " + taskCount + " task" + (taskCount == 1 ? "" : "s");
-        }
-
-        final boolean wakeLockHeld = mWakeLock != null;
-        if (wakeLockHeld) notificationText += " (wake lock held)";
-
-
-        // Set notification priority
-        // If holding a wake or wifi lock consider the notification of high priority since it's using power,
-        // otherwise use a low priority
-        int priority = (wakeLockHeld) ? Notification.PRIORITY_HIGH : Notification.PRIORITY_LOW;
-
-
-        // Build the notification
-        Notification.Builder builder =  NotificationUtils.geNotificationBuilder(this,
-            TermuxConstants.TERMUX_APP_NOTIFICATION_CHANNEL_ID, priority,
-            TermuxConstants.TERMUX_APP_NAME, notificationText, null,
-            contentIntent, null, NotificationUtils.NOTIFICATION_MODE_SILENT);
-        if (builder == null)  return null;
-
-        // No need to show a timestamp:
-        builder.setShowWhen(false);
-
-        // Set notification icon
-        builder.setSmallIcon(R.drawable.ic_service_notification);
-
-        // Set background color for small notification icon
-        builder.setColor(0xFF607D8B);
-
-        // TermuxSessions are always ongoing
-        builder.setOngoing(true);
-
-
-        // Zyvo Code: no EXIT / Wake-lock action buttons in the notification.
-        // The terminal stays alive as a silent foreground service.
-
-        return builder.build();
-    }
-
-    private void setupNotificationChannel() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
-
-        NotificationUtils.setupNotificationChannel(this, TermuxConstants.TERMUX_APP_NOTIFICATION_CHANNEL_ID,
-            TermuxConstants.TERMUX_APP_NOTIFICATION_CHANNEL_NAME, NotificationManager.IMPORTANCE_LOW);
-    }
-
     /** Update the shown foreground service notification after making any changes that affect it. */
     private synchronized void updateNotification() {
         if (mWakeLock == null && mShellManager.mTermuxSessions.isEmpty() && mShellManager.mTermuxTasks.isEmpty()) {
             // Exit if we are updating after the user disabled all locks with no sessions or tasks running.
             requestStopService();
         } else {
-            ((NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE)).notify(TermuxConstants.TERMUX_APP_NOTIFICATION_ID, buildNotification());
+            // Same single notification as the engine; the Awake action follows the lock state.
+            ZyvoNotif.setWakeHeld(this, mWakeLock != null);
         }
     }
 

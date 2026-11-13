@@ -318,30 +318,26 @@
                     android:textSize="9sp"
                     android:textStyle="bold" />
 
-                <TextView
-                    android:id="@+id/composer_model"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="6dp"
-                    android:background="@drawable/bg_badge"
-                    android:drawableEnd="@drawable/ic_chevron_down"
-                    android:drawablePadding="4dp"
-                    android:drawableTint="@color/text_secondary"
-                    android:ellipsize="end"
-                    android:maxLines="1"
-                    android:maxWidth="150dp"
-                    android:paddingStart="8dp"
-                    android:paddingEnd="6dp"
-                    android:paddingTop="3dp"
-                    android:paddingBottom="3dp"
-                    android:text="Big Pickle"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="9sp" />
-
                 <View
                     android:layout_width="0dp"
                     android:layout_height="1dp"
                     android:layout_weight="1" />
+
+                <TextView
+                    android:id="@+id/composer_model"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="10dp"
+                    android:drawableEnd="@drawable/ic_chevron_down"
+                    android:drawablePadding="3dp"
+                    android:drawableTint="@color/text_secondary"
+                    android:ellipsize="end"
+                    android:gravity="center_vertical"
+                    android:maxLines="1"
+                    android:maxWidth="140dp"
+                    android:text="Big Pickle"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="11sp" />
 
                 <ImageButton
                     android:id="@+id/btn_send"
