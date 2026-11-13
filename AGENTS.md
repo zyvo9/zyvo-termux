@@ -15,6 +15,26 @@ local `C:\Users\Admin\zyvo-termux`.
 - Local machine has NO Android SDK — CI is the only compiler. Brace-balance check
   before push: `python -c "s=open(f).read(); print(s.count('{')-s.count('}'))"`.
 
+## Current state (2026-11-13, apk-27 = e692d14)
+- Tool rows (apk-26/27): flat, no card background, 11sp; icon 13dp +
+  `Terminal/Write/Edit/Read` label + faint `text_disabled` target; `cleanCommand()`
+  strips the `export HOME=…;` preamble; diff shows `+N −N` (green/red) from
+  `state.diff`, and `+N` live from `state.input.content` while a write streams
+  (`ChatItem.liveLines`); bookkeeping writes (AGENTS.md/SKILL.md/vault) set
+  `ChatItem.hidden` and render GONE (first part event has no input yet, so the
+  hide check runs again once `cmd` is known).
+- Thought rows neutral gray (`text_secondary` / `text_disabled`), brain pulse kept.
+- Working bar above composer: `Working 12s` → `Worked for 1m 22s`; setBusy(false)
+  must NOT force GONE when `workingStartMs > 0` (a tool completing calls
+  setBusy(false) before session.idle — the old code hid the finished duration).
+- Assistant streaming shows `plainMarkdown()` (single-pass, no regex: strips
+  `*`, backticks, heading hashes, `>` quotes, `- ` → `• `); finished text renders
+  full Markwon (tables/linkify/strikethrough). Engine prompt now enforces clean
+  structure (sections, blank lines, bullets, tables, short lines) — shipped in
+  ZYVO-AI `3e6bb4e`, baked into release `android-v1.17.9` (assets refreshed
+  13:44Z; the fork CI pulls that tag, so a rebuild picks the new engine).
+- adb now: `192.168.1.109:39111` (port changes per wireless-debug toggle).
+
 ## Current state (2026-11-13, apk-22 = 98c2e24)
 - Dark-first: `ChatActivity.onCreate` forces `MODE_NIGHT_YES` (Zai dark tokens
   in `values-night/zyvo_colors.xml` now always active).

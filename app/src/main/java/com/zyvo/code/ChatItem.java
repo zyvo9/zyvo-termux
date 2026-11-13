@@ -28,6 +28,8 @@ public final class ChatItem {
     public String title = "";
     /** Bookkeeping writes (AGENTS.md / SKILL.md / vault) stay invisible. */
     public boolean hidden = false;
+    /** Entrance animation already played for this row. */
+    public boolean animated = false;
     public boolean expanded = false;
     public boolean full = false;
     public boolean error = false;

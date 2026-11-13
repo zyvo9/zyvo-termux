@@ -55,6 +55,8 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
     private final Context ctx;
     private final List<ChatItem> items;
     private final Markwon markwon;
+    /** Animator scale 0 (developer setting / battery saver) disables our motion. */
+    private final boolean reduceMotion;
     private final SimpleDateFormat timeFmt = new SimpleDateFormat("h:mm a", Locale.getDefault());
     private final SimpleDateFormat dayFmt = new SimpleDateFormat("MMM d, h:mm a", Locale.getDefault());
 
@@ -74,6 +76,24 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
                     }
                 })
                 .build();
+        float scale = 1f;
+        try {
+            scale = android.provider.Settings.Global.getFloat(ctx.getContentResolver(),
+                    android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f);
+        } catch (Throwable ignored) {
+        }
+        this.reduceMotion = scale == 0f;
+    }
+
+    /** Small entrance for a row the first time it appears; never on re-bind. */
+    private void animateIn(View v, ChatItem item) {
+        if (item == null || item.animated) return;
+        item.animated = true;
+        if (reduceMotion) return;
+        v.setAlpha(0f);
+        v.setTranslationY(6f * ctx.getResources().getDisplayMetrics().density);
+        v.animate().alpha(1f).translationY(0f).setDuration(170)
+                .setInterpolator(new android.view.animation.DecelerateInterpolator()).start();
     }
 
     @Override
@@ -135,7 +155,10 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
     @Override
     public void onViewRecycled(@NonNull RecyclerView.ViewHolder holder) {
         if (holder instanceof ThoughtVH) ((ThoughtVH) holder).stopTicker();
-        if (holder instanceof ToolVH) ((ToolVH) holder).stopTicker();
+        if (holder instanceof ToolVH) {
+            ((ToolVH) holder).stopTicker();
+            ((ToolVH) holder).stopSweep();
+        }
         super.onViewRecycled(holder);
     }
 
@@ -147,6 +170,7 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
     // ------------------------------------------------------------ messages
 
     private void bindMessage(MessageVH h, ChatItem item) {
+        animateIn(h.itemView, item);
         if (item.kind == ChatItem.USER) {
             markwon.setMarkdown(h.text, item.text == null ? "" : item.text);
             h.time.setText(stamp(item.timeMs));
@@ -272,6 +296,7 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
     }
 
     private void bindThought(ThoughtVH h, ChatItem item, int position) {
+        animateIn(h.itemView, item);
         boolean hasTitle = !TextUtils.isEmpty(item.title);
         if (item.streaming) {
             h.title.setText(hasTitle
@@ -345,6 +370,7 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
         boolean running = "running".equals(item.status) || "pending".equals(item.status);
         boolean failed = item.error || "error".equals(item.status);
 
+        animateIn(h.itemView, item);
         if (item.hidden) {
             h.itemView.setVisibility(View.GONE);
             h.stopTicker();
@@ -353,8 +379,13 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
 
         h.spinner.setVisibility(running ? View.VISIBLE : View.GONE);
         h.icon.setVisibility(running ? View.GONE : View.VISIBLE);
-        if (running) h.startTicker();
-        else h.stopTicker();
+        if (running) {
+            h.startTicker();
+            if (!reduceMotion) h.startSweep();
+        } else {
+            h.stopTicker();
+            h.stopSweep();
+        }
 
         h.icon.setImageResource(iconFor(item.toolName, item.command));
         h.icon.setColorFilter(ContextCompat.getColor(ctx,
@@ -609,6 +640,8 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
         final TextView diff;
         final TextView output;
         final TextView expand;
+        final View sweep;
+        android.animation.ObjectAnimator sweepAnim;
 
         ToolVH(@NonNull View v) {
             super(v);
@@ -620,7 +653,35 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
             diff = v.findViewById(R.id.diff);
             output = v.findViewById(R.id.output);
             expand = v.findViewById(R.id.expand);
+            sweep = v.findViewById(R.id.sweep);
             spinner.setText(ChatAdapter.FRAMES[0]);
+        }
+
+        void startSweep() {
+            if (sweepAnim != null || sweep == null) return;
+            sweep.setVisibility(View.VISIBLE);
+            sweepAnim = android.animation.ObjectAnimator.ofFloat(sweep,
+                    "translationX", -1f, 1f);
+            sweepAnim.setDuration(1300);
+            sweepAnim.setInterpolator(new android.view.animation.LinearInterpolator());
+            sweepAnim.setRepeatCount(android.animation.ValueAnimator.INFINITE);
+            sweepAnim.setRepeatMode(android.animation.ValueAnimator.RESTART);
+            sweepAnim.addUpdateListener(a -> {
+                float f = (float) a.getAnimatedValue();
+                sweep.setTranslationX(f * sweep.getWidth());
+            });
+            sweepAnim.start();
+        }
+
+        void stopSweep() {
+            if (sweepAnim != null) {
+                sweepAnim.cancel();
+                sweepAnim = null;
+            }
+            if (sweep != null) {
+                sweep.setVisibility(View.GONE);
+                sweep.setTranslationX(0f);
+            }
         }
 
         @Override

@@ -3,6 +3,7 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
+    android:animateLayoutChanges="true"
     android:orientation="vertical"
     android:paddingStart="14dp"
     android:paddingEnd="14dp"
@@ -93,6 +94,14 @@
         android:text="@string/tap_expand"
         android:textColor="@color/text_secondary"
         android:textSize="10sp"
+        android:visibility="gone" />
+
+    <View
+        android:id="@+id/sweep"
+        android:layout_width="match_parent"
+        android:layout_height="1.5dp"
+        android:layout_marginTop="3dp"
+        android:background="@drawable/bg_sweep"
         android:visibility="gone" />
 
 </LinearLayout>

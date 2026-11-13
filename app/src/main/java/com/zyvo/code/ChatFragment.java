@@ -1065,7 +1065,11 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
         }
         if (workingBar != null) {
             if (value) {
-                workingBar.setVisibility(View.VISIBLE);
+                if (workingBar.getVisibility() != View.VISIBLE) {
+                    workingBar.setVisibility(View.VISIBLE);
+                    workingBar.setAlpha(0f);
+                    workingBar.animate().alpha(1f).setDuration(140).start();
+                }
             } else if (workingStartMs > 0 && workingBarText != null) {
                 // turn finished: same spot keeps the total time instead of the spinner
                 workingBarText.setText(getString(R.string.worked_for_fmt,
