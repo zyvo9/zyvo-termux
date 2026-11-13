@@ -215,7 +215,8 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
             }
         });
 
-        RecyclerView sessionList = v.findViewById(R.id.session_list);
+        RecyclerView sessionList = getActivity() == null
+                ? null : getActivity().findViewById(R.id.session_list);
         if (sessionList != null) {
             sessionAdapter = new SessionAdapter(requireContext(), new SessionAdapter.Listener() {
                 @Override
@@ -1284,7 +1285,7 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
         byKey.put(item.key, item);
         adapter.notifyItemInserted(items.size() - 1);
         updateEmpty();
-        scrollIfPinned();
+        if (pinnedToBottom) scrollToBottomAnimated();
     }
 
     private void rebind(ChatItem item) {
@@ -1309,11 +1310,24 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
         if (list == null || adapter == null || adapter.getItemCount() == 0) return;
         final RecyclerView rv = list;
         rv.postOnAnimation(() -> {
-            int dy = rv.computeVerticalScrollRange()
-                    - rv.computeVerticalScrollExtent()
-                    - rv.computeVerticalScrollOffset();
+            LinearLayoutManager lm = (LinearLayoutManager) rv.getLayoutManager();
+            if (lm == null) return;
+            int lastPos = adapter.getItemCount() - 1;
+            View last = lm.findViewByPosition(lastPos);
+            if (last == null) return; // not laid out yet; next tick catches it
+            int dy = last.getBottom() - (rv.getHeight() - rv.getPaddingBottom());
             if (dy > 0) rv.scrollBy(0, dy);
             updatePinned();
+        });
+    }
+
+    /** New rows animate in instead of snapping the whole transcript. */
+    private void scrollToBottomAnimated() {
+        if (list == null || adapter == null || adapter.getItemCount() == 0) return;
+        list.post(() -> {
+            if (adapter.getItemCount() > 0) {
+                list.smoothScrollToPosition(adapter.getItemCount() - 1);
+            }
         });
     }
 
