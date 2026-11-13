@@ -53,6 +53,7 @@
     <string name="worked_for_fmt">Worked for %1$s</string>
     <string name="worked_steps_fmt">Worked · %1$s</string>
     <string name="working">Working…</string>
+    <string name="working_bar">Working</string>
     <string name="tap_expand">Tap to expand</string>
     <string name="tap_collapse">Tap to collapse</string>
     <string name="thinking">Thinking</string>

@@ -87,20 +87,36 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
     // only auto-scroll while the user is pinned to the bottom of the transcript
     private boolean pinnedToBottom = true;
     private long workingStartMs;
+    private View workingBar;
+    private View workingSpinner;
+    private TextView workingBarText;
     private final Runnable workingTick = new Runnable() {
         @Override
         public void run() {
-            for (int i = 0; i < items.size(); i++) {
-                ChatItem it = items.get(i);
-                if (it.kind != ChatItem.WORKING) continue;
-                long secs = Math.max(1, (System.currentTimeMillis() - workingStartMs) / 1000);
-                it.text = getString(R.string.working) + " \u00B7 " + secs + "s";
-                adapter.notifyItemChanged(i);
-                break;
+            if (workingBarText != null && workingStartMs > 0) {
+                workingBarText.setText(getString(R.string.working_bar) + " "
+                        + liveDuration(System.currentTimeMillis() - workingStartMs));
             }
             if (busy) ui.postDelayed(this, 1000);
         }
     };
+
+    /** 7.6s while running, 1m 23s when it gets long. */
+    private static String liveDuration(long ms) {
+        if (ms < 60_000) return String.format(Locale.US, "%.1fs", Math.max(0.1, ms / 1000.0));
+        long m = ms / 60_000;
+        long s = (ms % 60_000) / 1000;
+        return m + "m " + s + "s";
+    }
+
+    /** 8s / 1m 23s — rounded, for the finished line. */
+    private static String shortDuration(long ms) {
+        long s = Math.max(1, Math.round(ms / 1000.0));
+        if (s < 60) return s + "s";
+        long m = s / 60;
+        long r = s % 60;
+        return r == 0 ? m + "m" : m + "m " + r + "s";
+    }
 
     /** Reveals streamed assistant text a few characters at a time (no jumps). */
     private final Runnable revealTick = new Runnable() {
@@ -205,6 +221,9 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
         topDot = v.findViewById(R.id.top_engine_dot);
         modelChip = v.findViewById(R.id.model_chip);
         composerModel = v.findViewById(R.id.composer_model);
+        workingBar = v.findViewById(R.id.working_bar);
+        workingBarText = v.findViewById(R.id.working_text);
+        workingSpinner = v.findViewById(R.id.working_spinner);
 
         View.OnClickListener pickModel = this::showModelPicker;
         if (modelChip != null) modelChip.setOnClickListener(pickModel);
@@ -980,11 +999,6 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
         rememberSent(text);
         banner.setVisibility(View.GONE);
         workingStartMs = System.currentTimeMillis();
-        ChatItem work = ChatItem.working();
-        work.text = getString(R.string.working);
-        addItem(work);
-        ui.removeCallbacks(workingTick);
-        ui.postDelayed(workingTick, 1000);
         pinnedToBottom = true;
 
         setBusy(true);
@@ -1023,6 +1037,7 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
 
 
     private void setBusy(boolean value) {
+        boolean wasBusy = busy;
         busy = value;
         ui.removeCallbacks(busyWatchdog);
         ui.removeCallbacks(stallTick);
@@ -1030,11 +1045,23 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
             send.setImageResource(value ? R.drawable.ic_stop : R.drawable.ic_arrow_up);
             send.setContentDescription(getString(value ? R.string.stop : R.string.send));
         }
+        if (workingBar != null) workingBar.setVisibility(value ? View.VISIBLE : View.GONE);
+        if (workingSpinner != null) {
+            workingSpinner.setVisibility(value ? View.VISIBLE : View.GONE);
+        }
+        ui.removeCallbacks(workingTick);
         if (value) {
             lastSignalMs = System.currentTimeMillis();
             stallWarned = false;
+            if (workingBarText != null) workingBarText.setText(getString(R.string.working_bar));
+            ui.postDelayed(workingTick, 1000);
             ui.postDelayed(busyWatchdog, 180_000L);
             ui.postDelayed(stallTick, 5000L);
+        } else if (wasBusy && workingStartMs > 0 && workingBarText != null && workingBar != null) {
+            // turn finished: same spot keeps the total time instead of the spinner
+            workingBarText.setText(getString(R.string.worked_for_fmt,
+                    shortDuration(System.currentTimeMillis() - workingStartMs)));
+            workingBar.setVisibility(View.VISIBLE);
         }
     }
 
@@ -1156,6 +1183,7 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
 
     /** Clears the conversation (top bar + and the drawer's New chat call this). */
     public void newSession() {
+        workingStartMs = 0;
         sessionId = null;
         prefs.setLastSessionId("");
         sseLoaded = false;
@@ -1171,6 +1199,7 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
     /** Opens a session picked in the drawer (called by MainActivity). */
     public void openSession(String id, String title) {
         if (TextUtils.isEmpty(id)) return;
+        workingStartMs = 0;
         sessionId = id;
         prefs.setLastSessionId(id);
         sseLoaded = false;
