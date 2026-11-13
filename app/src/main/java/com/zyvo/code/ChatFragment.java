@@ -932,6 +932,15 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
             item.status = str(state, "status");
             item.command = cmd;
             item.diff = str(state, "diff");
+            // While a write/edit is still streaming the engine may already expose
+            // the growing content - show +N lines so the counter climbs live.
+            if (TextUtils.isEmpty(item.diff) && "running".equals(item.status)) {
+                String content = str(inp, "content");
+                if (content.isEmpty()) content = str(inp, "newString");
+                if (!content.isEmpty()) item.liveLines = countLines(content);
+            } else if (!TextUtils.isEmpty(item.diff)) {
+                item.liveLines = 0;
+            }
 
             String out = str(state, "output");
             if (out.isEmpty()) out = str(state, "error");

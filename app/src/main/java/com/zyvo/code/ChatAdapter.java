@@ -228,6 +228,22 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
         return out.toString();
     }
 
+    /**
+     * Strips the shell-env preamble the engine prepends to every bash call
+     * (`export HOME=...; export PATH=...;`) so the row shows the real command.
+     */
+    private static String cleanCommand(String cmd) {
+        if (cmd == null) return "";
+        String s = cmd.trim();
+        int guard = 0;
+        while (s.startsWith("export ") && guard++ < 4) {
+            int sep = s.indexOf(';');
+            if (sep < 0) break;
+            s = s.substring(sep + 1).trim();
+        }
+        return s;
+    }
+
     private String stamp(long ms) {
         if (ms <= 0) return "";
         Calendar now = Calendar.getInstance();
@@ -339,18 +355,27 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
         h.icon.setColorFilter(ContextCompat.getColor(ctx,
                 failed ? R.color.danger : R.color.text_disabled));
 
-        h.name.setText(titleFor(item.toolName, item.command));
+        String clean = cleanCommand(item.command);
+        h.name.setText(titleFor(item.toolName, clean));
         h.name.setTextColor(ContextCompat.getColor(ctx,
                 failed ? R.color.danger : R.color.text_secondary));
 
-        String detail = !TextUtils.isEmpty(item.label) ? item.label : item.command;
+        String detail = !TextUtils.isEmpty(item.label) ? item.label : clean;
         if (TextUtils.isEmpty(detail)) detail = firstLine(item.output);
         h.command.setText(detail == null ? "" : detail);
         h.command.setVisibility(TextUtils.isEmpty(detail) ? View.GONE : View.VISIBLE);
         h.command.setTextColor(ContextCompat.getColor(ctx,
                 failed ? R.color.danger : R.color.text_disabled));
 
-        bindDiff(h, item.diff);
+        if (!TextUtils.isEmpty(item.diff)) {
+            bindDiff(h, item.diff);
+        } else if (item.liveLines > 0) {
+            h.diff.setText("+" + item.liveLines);
+            h.diff.setTextColor(ContextCompat.getColor(ctx, R.color.ok));
+            h.diff.setVisibility(View.VISIBLE);
+        } else {
+            h.diff.setVisibility(View.GONE);
+        }
 
         boolean hasOutput = !TextUtils.isEmpty(item.output);
         boolean showOutput = hasOutput && (item.expanded || failed || running);

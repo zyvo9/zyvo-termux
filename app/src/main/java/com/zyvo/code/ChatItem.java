@@ -23,6 +23,8 @@ public final class ChatItem {
     public String output = "";
     public String status = "";
     public String diff = "";
+    /** Live line count while a write/edit streams (shown as +N before the diff lands). */
+    public int liveLines = 0;
     public String title = "";
     public boolean expanded = false;
     public boolean full = false;
