@@ -922,8 +922,15 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
             if (existing == null && isBookkeeping(toolName, cmd)) return;
 
             // The engine's task list renders as one live card, never a tool row.
-            if (isTodoTool(toolName) && inp.has("todos") && inp.get("todos").isJsonArray()) {
-                applyTodos(inp.getAsJsonArray("todos"));
+            if (isTodoTool(toolName)) {
+                if (inp.has("todos") && inp.get("todos").isJsonArray()) {
+                    applyTodos(inp.getAsJsonArray("todos"));
+                }
+                if (existing != null) {
+                    // the first event carries no input yet and may have made a row
+                    existing.hidden = true;
+                    rebind(existing);
+                }
                 return;
             }
 

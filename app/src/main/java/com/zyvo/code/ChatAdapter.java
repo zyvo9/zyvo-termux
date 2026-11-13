@@ -549,6 +549,7 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
 
     private static String titleFor(String tool, String command) {
         String n = tool == null ? "" : tool.toLowerCase(Locale.ROOT);
+        if (n.contains("todo")) return "Tasks";
         if (n.contains("bash") || n.contains("shell") || n.contains("exec")
                 || n.contains("terminal")) return "Terminal";
         if (n.equals("read") || n.startsWith("read_")) return "Read";
