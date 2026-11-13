@@ -549,7 +549,6 @@ public final class EngineManager {
             if (state != State.STOPPED) setState(State.ERROR, "engine process exited");
         }
     }
-    }
 
     private void appendLog(String line) {
         synchronized (ring) {
