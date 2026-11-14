@@ -55,6 +55,8 @@
     <string name="working">Working…</string>
     <string name="working_bar">Working</string>
     <string name="tasks_title">Tasks</string>
+    <string name="cancel">Cancel</string>
+    <string name="queued_fmt">Queued · %1$s</string>
     <string name="tap_expand">Tap to expand</string>
     <string name="tap_collapse">Tap to collapse</string>
     <string name="thinking">Thinking</string>

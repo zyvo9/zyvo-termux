@@ -90,16 +90,43 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
     private View workingBar;
     private View workingSpinner;
     private TextView workingBarText;
+    private View queuedBar;
+    private TextView queuedText;
+    private String queuedMessage;
+    /** Context size of the newest assistant message (input + cache read + output). */
+    private long ctxTokens;
     private final Runnable workingTick = new Runnable() {
         @Override
         public void run() {
             if (workingBarText != null && workingStartMs > 0) {
                 workingBarText.setText(getString(R.string.working_bar) + " "
-                        + liveDuration(System.currentTimeMillis() - workingStartMs));
+                        + liveDuration(System.currentTimeMillis() - workingStartMs)
+                        + ctxSuffix());
             }
             if (busy) ui.postDelayed(this, 1000);
         }
     };
+
+    /** " · 12.4k ctx" once the engine reported token usage for this session. */
+    private String ctxSuffix() {
+        return ctxTokens > 0 ? " · " + fmtTokens(ctxTokens) + " ctx" : "";
+    }
+
+    private static String fmtTokens(long n) {
+        if (n >= 1_000_000) return String.format(Locale.US, "%.1fM", n / 1_000_000.0);
+        if (n >= 1_000) return String.format(Locale.US, "%.1fk", n / 1000.0);
+        return String.valueOf(n);
+    }
+
+    private static long tokensOf(JsonObject info) {
+        if (info == null || !info.has("tokens") || !info.get("tokens").isJsonObject()) return 0;
+        JsonObject t = info.getAsJsonObject("tokens");
+        long cacheRead = 0;
+        if (t.has("cache") && t.get("cache").isJsonObject()) {
+            cacheRead = num(t.getAsJsonObject("cache"), "read");
+        }
+        return num(t, "input") + num(t, "output") + cacheRead;
+    }
 
     /** 7.6s while running, 1m 23s when it gets long. */
     private static String liveDuration(long ms) {
@@ -224,6 +251,10 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
         workingBar = v.findViewById(R.id.working_bar);
         workingBarText = v.findViewById(R.id.working_text);
         workingSpinner = v.findViewById(R.id.working_spinner);
+        queuedBar = v.findViewById(R.id.queued_bar);
+        queuedText = v.findViewById(R.id.queued_text);
+        View queuedCancel = v.findViewById(R.id.queued_cancel);
+        if (queuedCancel != null) queuedCancel.setOnClickListener(x -> clearQueue());
 
         View.OnClickListener pickModel = this::showModelPicker;
         if (modelChip != null) modelChip.setOnClickListener(pickModel);
@@ -296,15 +327,28 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
 
         send.setOnClickListener(view -> {
             if (busy) {
-                setBusy(false);
-                removeWorking();
-                flushReveal();
-                if (sessionId != null) {
-                    final String sid = sessionId;
-                    io.execute(() -> api.abort(sid));
+                String typed = input.getText().toString().trim();
+                if (!TextUtils.isEmpty(typed)) {
+                    queueMessage(typed);
+                } else {
+                    setBusy(false);
+                    removeWorking();
+                    flushReveal();
+                    if (sessionId != null) {
+                        final String sid = sessionId;
+                        io.execute(() -> api.abort(sid));
+                    }
                 }
             } else {
                 sendMessage();
+            }
+        });
+
+        input.addTextChangedListener(new android.text.TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int a, int b, int c) { }
+            @Override public void onTextChanged(CharSequence s, int a, int b, int c) { }
+            @Override public void afterTextChanged(android.text.Editable s) {
+                if (busy) updateSendIcon();
             }
         });
 
@@ -826,6 +870,8 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
                 String mrole = str(info, "role");
                 if (!mid.isEmpty() && !mrole.isEmpty()) messageRoles.put(mid, mrole);
                 if ("assistant".equals(mrole)) {
+                    long tk = tokensOf(info);
+                    if (tk > 0) ctxTokens = tk;
                     JsonObject time = info.has("time") && info.get("time").isJsonObject()
                             ? info.getAsJsonObject("time") : null;
                     if (time != null && time.has("completed")) {
@@ -864,6 +910,7 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
                 finishThoughts();
                 removeWorking();
                 setBusy(false);
+                sendQueuedIfAny();
             }
         } catch (Throwable t) {
             // never let a malformed event kill the stream
@@ -1092,9 +1139,46 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
         });
     }
 
+    // -------------------------------------------------------------- queue
+
+    /** Busy + typed text = queue it; busy + empty input = the stop button. */
+    private void queueMessage(String text) {
+        queuedMessage = text;
+        input.setText("");
+        if (queuedBar != null && queuedText != null) {
+            String line = text.replace('\n', ' ').trim();
+            if (line.length() > 60) line = line.substring(0, 60) + "…";
+            queuedText.setText(getString(R.string.queued_fmt, line));
+            queuedBar.setVisibility(View.VISIBLE);
+        }
+        updateSendIcon();
+    }
+
+    private void clearQueue() {
+        queuedMessage = null;
+        if (queuedBar != null) queuedBar.setVisibility(View.GONE);
+        updateSendIcon();
+    }
+
+    /** A queued message goes out by itself once the running turn is done. */
+    private void sendQueuedIfAny() {
+        if (queuedMessage == null) return;
+        final String text = queuedMessage;
+        clearQueue();
+        input.setText(text);
+        input.setSelection(text.length());
+        ui.postDelayed(this::sendMessage, 250);
+    }
+
+    private void updateSendIcon() {
+        if (send == null || input == null) return;
+        boolean showArrow = !busy || input.getText().toString().trim().length() > 0;
+        send.setImageResource(showArrow ? R.drawable.ic_arrow_up : R.drawable.ic_stop);
+        send.setContentDescription(getString(showArrow ? R.string.send : R.string.stop));
+    }
+
     /** The engine streams the user's own prompt back; remember it to skip it. */
-    private void rememberSent(String text) {
-        sentTexts.addLast(normalize(text));
+    private void rememberSent(String text) {        sentTexts.addLast(normalize(text));
         while (sentTexts.size() > 20) sentTexts.removeFirst();
     }
 
@@ -1108,7 +1192,7 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
         ui.removeCallbacks(busyWatchdog);
         ui.removeCallbacks(stallTick);
         if (send != null) {
-            send.setImageResource(value ? R.drawable.ic_stop : R.drawable.ic_arrow_up);
+            updateSendIcon();
             send.setContentDescription(getString(value ? R.string.stop : R.string.send));
         }
         if (workingBar != null) {
@@ -1121,7 +1205,7 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
             } else if (workingStartMs > 0 && workingBarText != null) {
                 // turn finished: same spot keeps the total time instead of the spinner
                 workingBarText.setText(getString(R.string.worked_for_fmt,
-                        shortDuration(System.currentTimeMillis() - workingStartMs)));
+                        shortDuration(System.currentTimeMillis() - workingStartMs)) + ctxSuffix());
                 workingBar.setVisibility(View.VISIBLE);
             } else {
                 workingBar.setVisibility(View.GONE);
@@ -1258,8 +1342,10 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
     // ----------------------------------------------------------- sessions
 
     /** Clears the conversation (top bar + and the drawer's New chat call this). */
-    public void newSession() {
+    public     void newSession() {
         workingStartMs = 0;
+        ctxTokens = 0;
+        clearQueue();
         sessionId = null;
         prefs.setLastSessionId("");
         sseLoaded = false;
@@ -1276,6 +1362,8 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
     public void openSession(String id, String title) {
         if (TextUtils.isEmpty(id)) return;
         workingStartMs = 0;
+        ctxTokens = 0;
+        clearQueue();
         sessionId = id;
         prefs.setLastSessionId(id);
         sseLoaded = false;
@@ -1422,9 +1510,21 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
             try {
                 JsonArray arr = api.messages(id);
                 final List<ChatItem> rebuilt = parseMessages(arr);
+                long tk = 0;
+                for (JsonElement el : arr) {
+                    if (!el.isJsonObject()) continue;
+                    JsonObject m = el.getAsJsonObject();
+                    if (!m.has("info") || !m.get("info").isJsonObject()) continue;
+                    JsonObject mi = m.getAsJsonObject("info");
+                    if (!"assistant".equals(str(mi, "role"))) continue;
+                    long t = tokensOf(mi);
+                    if (t > 0) tk = t;
+                }
+                final long replayTokens = tk;
                 ui.post(() -> {
                     if (!isAdded()) return;
                     if (loadingView != null) loadingView.setVisibility(View.GONE);
+                    if (replayTokens > 0) ctxTokens = replayTokens;
                     items.clear();
                     byKey.clear();
                     for (ChatItem ci : rebuilt) {

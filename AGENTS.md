@@ -15,6 +15,25 @@ local `C:\Users\Admin\zyvo-termux`.
 - Local machine has NO Android SDK — CI is the only compiler. Brace-balance check
   before push: `python -c "s=open(f).read(); print(s.count('{')-s.count('}'))"`.
 
+## Current state (2026-11-13, apk-30 = a85bbc0)
+- Motion (P3, our own, reduce-motion aware): rows fade+rise 6dp/170ms once
+  (`ChatItem.animated`, `ChatAdapter.animateIn`); running tool rows get a
+  brand-blue sweep (`bg_sweep.xml` + `ToolVH.startSweep/stopSweep`, 1.3s,
+  cancelled on recycle); `animateLayoutChanges` on tool/thought/todo roots;
+  working bar fades in. `reduceMotion` = Settings.Global.ANIMATOR_DURATION_SCALE == 0.
+- Todo card (P4): engine `todowrite` parts never render as tool rows — one
+  `ChatItem.TODO` card ("Tasks n/m") is updated in place (`applyTodos`), rows
+  ✓/◐/○/✕, completed = dim + strikethrough, `item_todo.xml` + `TodoVH`.
+  Live: a first event with empty input may create a ghost row → hidden then
+  (`existing.hidden = true`). Replay: `parseMessages` merges all todowrite
+  parts into one card. Engine also keeps a `todo` table in opencode.db
+  (`session_id, content, status, priority, position`).
+- Gotcha: engine tool part `state.title` for todowrite is "N todos", and
+  `titleFor()` matched "write" → ghost rows titled "Write"; now todo is matched
+  first ("Tasks").
+- DB inspect recipe: `su -c cp .../share/zyvo/opencode.db(-wal,-shm) /sdcard/`
+  → adb pull → sqlite3 (`part.data` JSON: `type`,`tool`,`state.input/status/diff`).
+
 ## Current state (2026-11-13, apk-27 = e692d14)
 - Tool rows (apk-26/27): flat, no card background, 11sp; icon 13dp +
   `Terminal/Write/Edit/Read` label + faint `text_disabled` target; `cleanCommand()`

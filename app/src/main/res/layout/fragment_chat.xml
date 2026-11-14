@@ -243,6 +243,49 @@
             android:visibility="gone" />
     </FrameLayout>
 
+    <!-- queued message: sent automatically when the running turn ends -->
+    <LinearLayout
+        android:id="@+id/queued_bar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/bg"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="18dp"
+        android:paddingEnd="10dp"
+        android:paddingTop="4dp"
+        android:paddingBottom="2dp"
+        android:visibility="gone">
+
+        <ImageView
+            android:layout_width="11dp"
+            android:layout_height="11dp"
+            android:contentDescription="@null"
+            android:src="@drawable/ic_lc_circle_x"
+            android:tint="@color/text_disabled" />
+
+        <TextView
+            android:id="@+id/queued_text"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="@color/text_secondary"
+            android:textSize="11sp" />
+
+        <ImageButton
+            android:id="@+id/queued_cancel"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/cancel"
+            android:padding="8dp"
+            android:src="@drawable/ic_lc_circle_x"
+            android:tint="@color/text_disabled" />
+    </LinearLayout>
+
     <!-- pinned working strip: stays above the composer for the whole turn -->
     <LinearLayout
         android:id="@+id/working_bar"
