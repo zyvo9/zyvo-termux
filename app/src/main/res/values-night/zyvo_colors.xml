@@ -1,55 +1,56 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Dark tokens — Grok/ChatGPT-class neutral dark (sampled from Grok 1.2.x). -->
+<!-- Dark tokens — zyvo CLI theme (packages/tui/src/theme/assets/zyvo.json,
+     warm coffee/amber palette; theme.tsx defaults to "zyvo"). -->
 <resources>
     <!-- base surfaces -->
-    <color name="bg">#0A0A0B</color>
-    <color name="bg_alt">#101012</color>
-    <color name="header">#0A0A0B</color>
-    <color name="panel">#141518</color>
-    <color name="card">#16171A</color>
-    <color name="card_alt">#1C1D21</color>
-    <color name="tool_bg">#121316</color>
-    <color name="markdown_code">#121316</color>
-    <color name="surface">#0DFFFFFF</color>
-    <color name="surface_hover">#1AFFFFFF</color>
-    <color name="selected">#1AFFFFFF</color>
+    <color name="bg">#0E0C09</color>
+    <color name="bg_alt">#16130E</color>
+    <color name="header">#0E0C09</color>
+    <color name="panel">#16130E</color>
+    <color name="card">#16130E</color>
+    <color name="card_alt">#1F1B14</color>
+    <color name="tool_bg">#16130E</color>
+    <color name="markdown_code">#1F1B14</color>
+    <color name="surface">#14F2EDE2</color>
+    <color name="surface_hover">#1FF2EDE2</color>
+    <color name="selected">#1FF2EDE2</color>
 
     <!-- text -->
-    <color name="text_primary">#ECEDEE</color>
-    <color name="text_secondary">#9A9CA3</color>
-    <color name="text_disabled">#6E7178</color>
-    <color name="text_inverse">#0A0A0B</color>
-    <color name="link">#7CB4FF</color>
+    <color name="text_primary">#F2EDE2</color>
+    <color name="text_secondary">#8A8172</color>
+    <color name="text_disabled">#5C5340</color>
+    <color name="text_inverse">#0E0C09</color>
+    <color name="link">#E8A33D</color>
 
     <!-- borders -->
-    <color name="line">#14FFFFFF</color>
-    <color name="line_strong">#24FFFFFF</color>
+    <color name="line">#29241B</color>
+    <color name="line_strong">#3E3729</color>
 
-    <!-- brand / actions -->
-    <color name="accent">#FFFFFF</color>
-    <color name="accent_dark">#FFFFFF</color>
-    <color name="accent_container">#1E2025</color>
-    <color name="accent_on_container">#D7D9DE</color>
-    <color name="primary">#FFFFFF</color>
-    <color name="on_primary">#0A0A0B</color>
-    <color name="secondary">#26272C</color>
-    <color name="secondary_text">#D7D9DE</color>
+    <!-- brand / actions (zyvo amber) -->
+    <color name="accent">#E8A33D</color>
+    <color name="accent_dark">#FFC27A</color>
+    <color name="accent_container">#29241B</color>
+    <color name="accent_on_container">#E8A33D</color>
+    <color name="primary">#E8A33D</color>
+    <color name="on_primary">#0E0C09</color>
+    <color name="secondary">#1F1B14</color>
+    <color name="secondary_text">#D9B45A</color>
 
     <!-- status -->
-    <color name="danger">#FF6B6B</color>
-    <color name="danger_surface">#29FF6B6B</color>
-    <color name="ok">#3DDC97</color>
-    <color name="warn">#F5A524</color>
-    <color name="warn_bg">#2B2113</color>
+    <color name="danger">#E06C75</color>
+    <color name="danger_surface">#29E06C75</color>
+    <color name="ok">#7FD88F</color>
+    <color name="warn">#F5A742</color>
+    <color name="warn_bg">#2A2013</color>
 
     <!-- chat / code -->
-    <color name="user_bubble">#1B1C20</color>
-    <color name="code_bg">#0FFFFFFF</color>
-    <color name="code_text">#D7D9DE</color>
-    <color name="terminal_bg">#0A0A0B</color>
-    <color name="terminal_fg">#ECEDEE</color>
-    <color name="terminal_cursor">#FFFFFF</color>
+    <color name="user_bubble">#1F1B14</color>
+    <color name="code_bg">#1F1B14</color>
+    <color name="code_text">#F2EDE2</color>
+    <color name="terminal_bg">#0E0C09</color>
+    <color name="terminal_fg">#F2EDE2</color>
+    <color name="terminal_cursor">#E8A33D</color>
 
-    <color name="white">#FFFFFF</color>
-    <color name="black">#000000</color>
+    <color name="white">#F2EDE2</color>
+    <color name="black">#0E0C09</color>
 </resources>

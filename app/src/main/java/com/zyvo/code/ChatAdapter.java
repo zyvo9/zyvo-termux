@@ -467,17 +467,43 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
 
         h.icon.setImageResource(iconFor(item.toolName, item.command));
         h.icon.setColorFilter(ContextCompat.getColor(ctx,
-                failed ? R.color.danger : R.color.text_disabled));
-
-        String clean = cleanCommand(item.command);
-        h.name.setText(titleFor(item.toolName, clean));
-        h.name.setTextColor(ContextCompat.getColor(ctx,
                 failed ? R.color.danger : R.color.text_secondary));
 
-        String detail = !TextUtils.isEmpty(item.label) ? item.label : clean;
-        if (TextUtils.isEmpty(detail)) detail = firstLine(item.output);
-        h.command.setText(detail == null ? "" : detail);
-        h.command.setVisibility(TextUtils.isEmpty(detail) ? View.GONE : View.VISIBLE);
+        String clean = cleanCommand(item.command);
+        String tool = item.toolName == null ? "" : item.toolName.toLowerCase(Locale.ROOT);
+        // CLI: Shell / Write / Edit render as a BlockTool panel (left border),
+        // every other tool is a one-line inline row.
+        boolean block = isShell(item.toolName, item.command)
+                || tool.contains("write") || tool.contains("edit") || tool.contains("patch");
+
+        int padH = dp(block ? 9 : 0);
+        int padV = dp(block ? 6 : 0);
+        h.inner.setPadding(padH, padV, padH, padV);
+        if (block) {
+            h.card.setBackgroundResource(R.drawable.bg_block);
+            h.leftBorder.setVisibility(View.VISIBLE);
+            h.chevron.setVisibility(View.VISIBLE);
+        } else {
+            h.card.setBackground(null);
+            h.leftBorder.setVisibility(View.GONE);
+            h.chevron.setVisibility(View.GONE);
+        }
+
+        String desc = !TextUtils.isEmpty(item.label) ? item.label : clean;
+        if (TextUtils.isEmpty(desc)) desc = firstLine(item.output);
+        desc = desc == null ? "" : desc.trim();
+        if (block) {
+            // BlockTool title: "# description" — the command itself only shows
+            // once the block is opened.
+            h.name.setText("# " + (desc.isEmpty() ? titleFor(item.toolName, clean) : firstLine(desc)));
+            h.command.setVisibility(View.GONE);
+        } else {
+            h.name.setText(titleFor(item.toolName, clean));
+            h.command.setText(desc);
+            h.command.setVisibility(desc.isEmpty() ? View.GONE : View.VISIBLE);
+        }
+        h.name.setTextColor(ContextCompat.getColor(ctx,
+                failed ? R.color.danger : R.color.text_secondary));
         h.command.setTextColor(ContextCompat.getColor(ctx,
                 failed ? R.color.danger : R.color.text_disabled));
 
@@ -503,25 +529,28 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
             h.diff.setVisibility(View.GONE);
         }
 
-        // --- output: 1 line collapsed, 40 lines open, everything when full
+        // --- body: only block tools carry a command line + output
         boolean hasOutput = !TextUtils.isEmpty(item.output);
+        boolean hasCmd = block && !TextUtils.isEmpty(clean);
         int total = hasOutput ? countLines(item.output) : 0;
-        boolean showOutput = hasOutput && (item.expanded || failed || running);
-        int maxLines = item.full ? 400 : (item.expanded ? 40 : 1);
-        if (running && !item.expanded && total > 3) maxLines = 3; // live tail while it runs
-        if (failed && !item.expanded) maxLines = 6;               // show the error, not one line
-        h.output.setVisibility(showOutput ? View.VISIBLE : View.GONE);
-        if (showOutput) {
-            boolean tailMode = running && !item.expanded && total > 3;
-            String body = tailMode ? tail(item.output, 3)
-                    : (item.full ? cap(item.output, 400) : preview(item.output, maxLines));
-            h.output.setText(body);
+        boolean open = block && (item.expanded || failed || running);
+        int maxLines = item.full ? 400 : (item.expanded ? 10 : 3);
+        if (failed && !item.expanded) maxLines = 8;
+
+        h.cmdLine.setVisibility(open && hasCmd ? View.VISIBLE : View.GONE);
+        if (open && hasCmd) h.cmdLine.setText("$ " + clean);
+
+        h.output.setVisibility(open && hasOutput ? View.VISIBLE : View.GONE);
+        if (open && hasOutput) {
+            boolean tailMode = running && !item.expanded && total > maxLines;
+            h.output.setText(tailMode ? tail(item.output, maxLines)
+                    : (item.full ? cap(item.output, 400) : preview(item.output, maxLines)));
             h.output.setMaxLines(maxLines);
             h.output.setEllipsize(item.full ? null : TextUtils.TruncateAt.END);
         }
 
         boolean overflow = total > maxLines;
-        boolean showMeta = showOutput && (overflow || item.expanded);
+        boolean showMeta = open && overflow;
         h.expand.setVisibility(showMeta ? View.VISIBLE : View.GONE);
         if (showMeta) {
             h.expand.setText(item.full
@@ -551,7 +580,8 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
         });
 
         h.card.setOnClickListener(v -> {
-            nextStage(item);
+            if (block) nextStage(item);
+            else if (hasDiff) item.showDiff = !item.showDiff;
             notifyItemChanged(position);
         });
     }
@@ -850,10 +880,13 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
 
     static final class ToolVH extends TickingVH {
         final View card;
+        final View leftBorder;
+        final View inner;
         final TextView spinner;
         final ImageView icon;
         final TextView name;
         final TextView command;
+        final TextView cmdLine;
         final TextView diff;
         final TextView output;
         final TextView expand;
@@ -865,10 +898,13 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
         ToolVH(@NonNull View v) {
             super(v);
             card = v.findViewById(R.id.tool_card);
+            leftBorder = v.findViewById(R.id.left_border);
+            inner = v.findViewById(R.id.tool_inner);
             spinner = v.findViewById(R.id.tool_spinner);
             icon = v.findViewById(R.id.tool_icon);
             name = v.findViewById(R.id.tool_name);
             command = v.findViewById(R.id.command);
+            cmdLine = v.findViewById(R.id.cmd_line);
             diff = v.findViewById(R.id.diff);
             output = v.findViewById(R.id.output);
             expand = v.findViewById(R.id.expand);
