@@ -200,7 +200,7 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
 
         boolean hasText = !TextUtils.isEmpty(item.text) && !revealing;
         h.actions.setVisibility(hasText ? View.VISIBLE : View.GONE);
-        h.time.setText(revealing ? "" : stamp(item.timeMs));
+        h.time.setText(revealing ? "" : footer(item));
 
         if (hasText) {
             h.btnCopy.setOnClickListener(v -> {
@@ -294,6 +294,14 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
         long m = ms / 60000;
         long s = (ms % 60000) / 1000;
         return m + "m " + s + "s";
+    }
+
+    /** Footer under a reply: "12:24 PM · 5s" (duration = how long the turn took). */
+    private String footer(ChatItem item) {
+        String t = stamp(item.timeMs);
+        String d = item.durationMs > 0 ? fmtDuration(item.durationMs) : "";
+        if (d.isEmpty()) return t;
+        return TextUtils.isEmpty(t) ? d : t + " · " + d;
     }
 
     // ------------------------------------------------------------- thought

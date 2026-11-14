@@ -83,6 +83,12 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
     private EventSource sseStartedFrom;
     private String sessionId;
     private boolean busy;
+    /** Stop was pressed; the strip reads "Stopping…" until session.idle. */
+    private boolean stopping;
+    /** Part id of the assistant text being streamed in the current turn. */
+    private String turnAssistantKey;
+    /** Newest assistant message has time.completed (real end-of-turn signal). */
+    private boolean lastAssistantDone = true;
 
     // only auto-scroll while the user is pinned to the bottom of the transcript
     private boolean pinnedToBottom = true;
@@ -98,7 +104,7 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
     private final Runnable workingTick = new Runnable() {
         @Override
         public void run() {
-            if (workingBarText != null && workingStartMs > 0) {
+            if (workingBarText != null && workingStartMs > 0 && !stopping) {
                 workingBarText.setText(getString(R.string.working_bar) + " "
                         + liveDuration(System.currentTimeMillis() - workingStartMs)
                         + ctxSuffix());
@@ -118,8 +124,16 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
         return String.valueOf(n);
     }
 
-    private static long tokensOf(JsonObject info) {
-        if (info == null || !info.has("tokens") || !info.get("tokens").isJsonObject()) return 0;
+    /** Assistant message duration from the engine's own timestamps (replay). */
+    private static long msgDuration(JsonObject info) {
+        if (info == null || !info.has("time") || !info.get("time").isJsonObject()) return 0;
+        JsonObject t = info.getAsJsonObject("time");
+        long created = num(t, "created");
+        long completed = num(t, "completed");
+        return (created > 0 && completed > created) ? completed - created : 0;
+    }
+
+    private static long tokensOf(JsonObject info) {        if (info == null || !info.has("tokens") || !info.get("tokens").isJsonObject()) return 0;
         JsonObject t = info.getAsJsonObject("tokens");
         long cacheRead = 0;
         if (t.has("cache") && t.get("cache").isJsonObject()) {
@@ -331,13 +345,7 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
                 if (!TextUtils.isEmpty(typed)) {
                     queueMessage(typed);
                 } else {
-                    setBusy(false);
-                    removeWorking();
-                    flushReveal();
-                    if (sessionId != null) {
-                        final String sid = sessionId;
-                        io.execute(() -> api.abort(sid));
-                    }
+                    stopTurn();
                 }
             } else {
                 sendMessage();
@@ -874,7 +882,8 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
                     if (tk > 0) ctxTokens = tk;
                     JsonObject time = info.has("time") && info.get("time").isJsonObject()
                             ? info.getAsJsonObject("time") : null;
-                    if (time != null && time.has("completed")) {
+                    lastAssistantDone = time != null && time.has("completed");
+                    if (lastAssistantDone) {
                         // per-message completion fires after every agent step; the
                         // turn is only over on session.idle (keeps Working visible).
                         finishThoughts();
@@ -907,10 +916,13 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
                 }
             } else if ("session.idle".equals(type)) {
                 lastSignalMs = System.currentTimeMillis();
-                finishThoughts();
-                removeWorking();
-                setBusy(false);
-                sendQueuedIfAny();
+                // Some engine versions emit idle between agent steps while a tool is
+                // still running — that is NOT the end of the turn. Wait for the real
+                // idle (the one after the last assistant message completes).
+                if (!stopping && busy && !lastAssistantDone && hasRunningTool()) {
+                    return;
+                }
+                finishTurn();
             }
         } catch (Throwable t) {
             // never let a malformed event kill the stream
@@ -943,6 +955,7 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
                 addItem(item);
             }
             item.fullText = text;
+            turnAssistantKey = pid;
             if (item.shown > text.length()) item.shown = 0;
             if (item.shown == 0) item.text = "";
             startReveal();
@@ -1113,6 +1126,8 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
         rememberSent(text);
         banner.setVisibility(View.GONE);
         workingStartMs = System.currentTimeMillis();
+        turnAssistantKey = null;
+        lastAssistantDone = true;
         pinnedToBottom = true;
 
         setBusy(true);
@@ -1140,6 +1155,50 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
     }
 
     // -------------------------------------------------------------- queue
+
+    /** The single place where a turn really ends. */
+    private void finishTurn() {
+        finishThoughts();
+        removeWorking();
+        markTurnDuration();
+        stopping = false;
+        setBusy(false);
+        sendQueuedIfAny();
+    }
+
+    /** Stop pressed: keep the strip alive with "Stopping…" until the engine goes idle. */
+    private void stopTurn() {
+        stopping = true;
+        if (workingBarText != null) {
+            workingBarText.setText(getString(R.string.stopping));
+        }
+        if (workingSpinner != null) workingSpinner.setVisibility(View.VISIBLE);
+        flushReveal();
+        final String sid = sessionId;
+        if (sid != null) io.execute(() -> api.abort(sid));
+        // safety net: if the engine never sends session.idle after the abort
+        ui.postDelayed(() -> {
+            if (stopping && busy) {
+                stopping = false;
+                removeWorking();
+                markTurnDuration();
+                setBusy(false);
+            }
+        }, 8000);
+    }
+
+    /** Writes the turn duration into the footer of the newest reply. */
+    private void markTurnDuration() {
+        if (workingStartMs <= 0) return;
+        final long dur = System.currentTimeMillis() - workingStartMs;
+        workingStartMs = 0;
+        if (turnAssistantKey == null) return;
+        ChatItem ci = byKey.get(turnAssistantKey);
+        if (ci == null || ci.hidden || TextUtils.isEmpty(ci.text)) return;
+        ci.durationMs = dur;
+        int idx = items.indexOf(ci);
+        if (idx >= 0) adapter.notifyItemChanged(idx);
+    }
 
     /** Busy + typed text = queue it; busy + empty input = the stop button. */
     private void queueMessage(String text) {
@@ -1202,12 +1261,8 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
                     workingBar.setAlpha(0f);
                     workingBar.animate().alpha(1f).setDuration(140).start();
                 }
-            } else if (workingStartMs > 0 && workingBarText != null) {
-                // turn finished: same spot keeps the total time instead of the spinner
-                workingBarText.setText(getString(R.string.worked_for_fmt,
-                        shortDuration(System.currentTimeMillis() - workingStartMs)) + ctxSuffix());
-                workingBar.setVisibility(View.VISIBLE);
             } else {
+                // turn over: the duration now lives in the reply footer, strip goes away
                 workingBar.setVisibility(View.GONE);
             }
         }
@@ -1576,6 +1631,7 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
                         item.text = text;
                         item.fullText = text;
                         item.shown = text.length();
+                        item.durationMs = msgDuration(info);
                         out.add(item);
                     }
                 } else if ("tool".equals(ptype)) {
