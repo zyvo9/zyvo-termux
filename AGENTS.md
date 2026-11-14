@@ -188,3 +188,33 @@ main CSS `out/renderer/assets/styles-NK68EN_n.css`, 480KB, 59 keyframes).
 - Verified resource refs with Temp\zyvo\check_refs.py (R.id/string/drawable
   vs res/) before pushing — no Android SDK locally, so this + XML parse is the
   pre-flight.
+
+## 2026-11-14 (apk-40) - UI now mirrors the zyvo CLI itself
+- User asked to study the CLI and match it ("zyvo te valo kore dekho"). TUI
+  source: packages/tui/src/routes/session/index.tsx - PART_MAPPING = text /
+  tool / reasoning; ReasoningPart = 1-line collapsed header + duration;
+  ToolPart splits BlockTool (Shell, Write, Edit, ApplyPatch - panel card with
+  a left border, command line shown only when open) vs InlineTool (read, grep,
+  glob, task, todowrite - flat 1-2 line row, hover, failed = red, denied =
+  strikethrough); DiffStats = +N green / -N red; ToolPart.shouldHide hides
+  bookkeeping write/edit to AGENTS.md, ZyvoVault, SKILL.md, skills/.
+- Palette: packages/tui/src/theme/assets/zyvo.json is the DEFAULT theme
+  (config/theme.tsx kv.get("theme","zyvo")). Warm coffee/amber:
+  darkStep1 #0e0c09 (bg), step2 #16130e, step3 #1f1b14, step4 #29241b,
+  step5 #332d22, step6 #3e3729, step7 #4a4232, step8 #5c5340,
+  step9 #e8a33d (primary amber), step10 #ffc27a, step11 #8a8172 (muted),
+  step12 #f2ede2 (text), secondary #d9b45a, accent #e8734a, red #e06c75,
+  orange #f5a742, green #7fd88f, cyan #56b6c2, yellow #e5c07b.
+  Markdown: heading=accent, link=step9, code=green, strong=orange.
+- Android: values-night/zyvo_colors.xml rewritten to that palette;
+  bg_block.xml = panel r3 (layer-list android:width needs API 23, so the 3dp
+  left border is a real View: left_border in item_tool.xml);
+  item_tool.xml = tool_card > left_border + tool_inner (head row + cmd_line
+  "$ command" + output + expand + diff_body + sweep);
+  ChatAdapter.bindTool picks block (shell/write/edit/patch) vs inline,
+  bg_sweep is amber now. Build 40 green.
+- Local APK delivery without adb: python -m http.server 8485 in
+  Temp\zyvo\apkserve + cloudflared quick tunnel ->
+  https://racing-nut-license-specialist.trycloudflare.com/zyvo-40.apk
+- User preference (2026-11-14): the app's look must follow the zyvo CLI itself (warm amber, block/inline tool rows) - NOT a Grok clone. Grok study was only a layout reference.
+- Design split (final, 2026-11-14): SHELL from Grok (top tabs + underline, circular hamburger/new-chat, user bubble r22 / assistant plain text, r26 composer, Inter, empty-state chips, FAB) + CONTENT from the CLI (amber coffee palette, block/inline tool rows, reasoning header, mono code, +N -N). Not Grok's neutral #080808, not Grok's voice-first Speak pill.

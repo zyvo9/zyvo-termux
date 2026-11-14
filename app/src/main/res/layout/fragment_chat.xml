@@ -23,10 +23,15 @@
             android:src="@drawable/ic_menu"
             android:tint="@color/text_primary" />
 
-        <LinearLayout
+        <FrameLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_gravity="center"
+            android:layout_gravity="center">
+
+        <LinearLayout
+            android:id="@+id/tab_row"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
             android:gravity="center"
             android:orientation="horizontal">
 
@@ -49,10 +54,8 @@
                     android:textStyle="bold" />
 
                 <View
-                    android:layout_width="16dp"
-                    android:layout_height="3dp"
-                    android:layout_marginTop="5dp"
-                    android:background="@drawable/bg_tab_underline" />
+                    android:layout_width="match_parent"
+                    android:layout_height="8dp" />
             </LinearLayout>
 
             <LinearLayout
@@ -74,11 +77,8 @@
                     android:textSize="16sp" />
 
                 <View
-                    android:layout_width="16dp"
-                    android:layout_height="3dp"
-                    android:layout_marginTop="5dp"
-                    android:background="@drawable/bg_tab_underline"
-                    android:visibility="invisible" />
+                    android:layout_width="match_parent"
+                    android:layout_height="8dp" />
             </LinearLayout>
 
             <LinearLayout
@@ -100,13 +100,19 @@
                     android:textSize="16sp" />
 
                 <View
-                    android:layout_width="16dp"
-                    android:layout_height="3dp"
-                    android:layout_marginTop="5dp"
-                    android:background="@drawable/bg_tab_underline"
-                    android:visibility="invisible" />
+                    android:layout_width="match_parent"
+                    android:layout_height="8dp" />
             </LinearLayout>
         </LinearLayout>
+
+            <!-- one underline that slides between the three tabs -->
+            <View
+                android:id="@+id/tab_underline"
+                android:layout_width="16dp"
+                android:layout_height="3dp"
+                android:layout_gravity="start|bottom"
+                android:background="@drawable/bg_tab_underline" />
+        </FrameLayout>
 
         <ImageButton
             android:id="@+id/btn_new"
@@ -193,6 +199,7 @@
             android:visibility="gone">
 
             <TextView
+                android:id="@+id/empty_title"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:fontFamily="@font/inter"
@@ -203,6 +210,7 @@
                 android:textStyle="bold" />
 
             <TextView
+                android:id="@+id/empty_hint"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"

@@ -170,7 +170,10 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
 
     @Override
     public void onViewRecycled(@NonNull RecyclerView.ViewHolder holder) {
-        if (holder instanceof ThoughtVH) ((ThoughtVH) holder).stopTicker();
+        if (holder instanceof ThoughtVH) {
+            ((ThoughtVH) holder).stopTicker();
+            ((ThoughtVH) holder).stopShimmer();
+        }
         if (holder instanceof ToolVH) {
             ((ToolVH) holder).stopTicker();
             ((ToolVH) holder).stopSweep();
@@ -329,8 +332,10 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
             h.spinner.setVisibility(View.VISIBLE);
             h.chevron.setVisibility(View.GONE);
             h.startTicker();
+            h.startShimmer();
         } else {
             h.stopTicker();
+            h.stopShimmer();
             h.spinner.setVisibility(View.VISIBLE);
             h.spinner.setAlpha(0.75f);
             StringBuilder sb = new StringBuilder(ctx.getString(R.string.thought));
@@ -859,6 +864,10 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
         final TextView title;
         final TextView body;
         final ImageView chevron;
+        private final int baseColor;
+        private android.animation.ValueAnimator shimmer;
+        private android.graphics.LinearGradient gradient;
+        private final android.graphics.Matrix matrix = new android.graphics.Matrix();
 
         ThoughtVH(@NonNull View v) {
             super(v);
@@ -867,6 +876,43 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
             title = v.findViewById(R.id.thought_title);
             body = v.findViewById(R.id.thought_body);
             chevron = v.findViewById(R.id.thought_chevron);
+            baseColor = title.getCurrentTextColor();
+        }
+
+        /** Grok-style shimmer: a soft highlight runs across "Thinking…". */
+        void startShimmer() {
+            if (shimmer != null) return;
+            float d = title.getResources().getDisplayMetrics().density;
+            final int w = (int) (150 * d);
+            if (gradient == null) {
+                gradient = new android.graphics.LinearGradient(0f, 0f, w, 0f,
+                        new int[]{0x668A8172, 0xFFF2EDE2, 0x668A8172},
+                        new float[]{0f, 0.5f, 1f},
+                        android.graphics.Shader.TileMode.CLAMP);
+            }
+            title.getPaint().setShader(gradient);
+            shimmer = android.animation.ValueAnimator.ofFloat(-w, w * 1.4f);
+            shimmer.setDuration(1250);
+            shimmer.setRepeatCount(android.animation.ValueAnimator.INFINITE);
+            shimmer.setInterpolator(new android.view.animation.LinearInterpolator());
+            shimmer.addUpdateListener(a -> {
+                matrix.setTranslate((float) a.getAnimatedValue(), 0f);
+                gradient.setLocalMatrix(matrix);
+                title.invalidate();
+            });
+            shimmer.start();
+        }
+
+        void stopShimmer() {
+            if (shimmer != null) {
+                shimmer.cancel();
+                shimmer = null;
+            }
+            if (title.getPaint().getShader() != null) {
+                title.getPaint().setShader(null);
+                title.setTextColor(baseColor);
+                title.invalidate();
+            }
         }
 
         @Override

@@ -14,6 +14,7 @@ import android.text.TextUtils;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.LayoutInflater;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.inputmethod.EditorInfo;
@@ -67,6 +68,8 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
 
     private EditText input;
     private ImageButton send;
+    private View tabUnderline;
+    private View tabRow;
     private View emptyView;
     private ProgressBar loadingView;
     private View banner;
@@ -406,14 +409,31 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
 
         // top tabs (Grok-style): Chat / Terminal / Settings
         View tabChat = v.findViewById(R.id.tab_chat);
+        tabRow = v.findViewById(R.id.tab_row);
+        tabUnderline = v.findViewById(R.id.tab_underline);
         if (tabChat != null) tabChat.setOnClickListener(view -> {
+            moveUnderline(view, true);
             pinnedToBottom = true;
             scrollToBottom();
         });
         View tabTerminal = v.findViewById(R.id.tab_terminal);
-        if (tabTerminal != null) tabTerminal.setOnClickListener(view -> openTerminal());
+        if (tabTerminal != null) tabTerminal.setOnClickListener(view -> {
+            moveUnderline(view, true);
+            openTerminal();
+        });
         View tabSettings = v.findViewById(R.id.tab_settings);
-        if (tabSettings != null) tabSettings.setOnClickListener(view -> openSettings());
+        if (tabSettings != null) tabSettings.setOnClickListener(view -> {
+            moveUnderline(view, true);
+            openSettings();
+        });
+        if (tabChat != null) moveUnderline(tabChat, false);
+
+        // send button: tiny press feedback (Grok keeps the composer calm)
+        if (send != null) send.setOnTouchListener((view, ev) -> {
+            float s = ev.getAction() == MotionEvent.ACTION_DOWN ? 0.9f : 1f;
+            view.animate().scaleX(s).scaleY(s).setDuration(90).start();
+            return false;
+        });
         bannerAction.setOnClickListener(view -> {
             showBanner("Starting engine…", false);
             engine.restart();
@@ -1881,9 +1901,54 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
     }
 
     private void updateEmpty() {
-        if (emptyView != null) {
-            emptyView.setVisibility(items.isEmpty() ? View.VISIBLE : View.GONE);
+        if (emptyView == null) return;
+        boolean show = items.isEmpty();
+        boolean was = emptyView.getVisibility() == View.VISIBLE;
+        emptyView.setVisibility(show ? View.VISIBLE : View.GONE);
+        if (show && !was) animateEmpty();
+    }
+
+    /** Grok-style entrance: headline, hint and the three chips rise in order. */
+    private void animateEmpty() {
+        if (emptyView == null || !animationsOn()) return;
+        View[] parts = {emptyView.findViewById(R.id.empty_title),
+                emptyView.findViewById(R.id.empty_hint),
+                emptyView.findViewById(R.id.chip1),
+                emptyView.findViewById(R.id.chip2),
+                emptyView.findViewById(R.id.chip3)};
+        float d = getResources().getDisplayMetrics().density;
+        for (int i = 0; i < parts.length; i++) {
+            View p = parts[i];
+            if (p == null) continue;
+            p.setAlpha(0f);
+            p.setTranslationY(12f * d);
+            p.animate().alpha(1f).translationY(0f)
+                    .setStartDelay(50L * i).setDuration(300)
+                    .setInterpolator(new android.view.animation.DecelerateInterpolator())
+                    .start();
         }
+    }
+
+    /** One underline, sliding under the tab that was tapped. */
+    private void moveUnderline(View tab, boolean animate) {
+        if (tabUnderline == null || tabRow == null || tab == null) return;
+        tabRow.post(() -> {
+            if (tabUnderline == null || tab.getWidth() == 0) return;
+            float x = tab.getLeft() + (tab.getWidth() - tabUnderline.getWidth()) / 2f;
+            if (animate && animationsOn()) {
+                tabUnderline.animate().translationX(x).setDuration(220)
+                        .setInterpolator(new android.view.animation.DecelerateInterpolator())
+                        .start();
+            } else {
+                tabUnderline.setTranslationX(x);
+            }
+        });
+    }
+
+    private boolean animationsOn() {
+        if (getContext() == null) return false;
+        return android.provider.Settings.Global.getFloat(getContext().getContentResolver(),
+                android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f) != 0f;
     }
 
     private void scrollIfPinned() {
@@ -1962,7 +2027,17 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
         }
         pinnedToBottom = lm.findLastVisibleItemPosition() >= adapter.getItemCount() - 2;
         if (scrollBottom != null) {
-            scrollBottom.setVisibility(pinnedToBottom ? View.GONE : View.VISIBLE);
+            boolean show = !pinnedToBottom;
+            boolean was = scrollBottom.getVisibility() == View.VISIBLE;
+            scrollBottom.setVisibility(show ? View.VISIBLE : View.GONE);
+            if (show && !was && animationsOn()) {
+                scrollBottom.setAlpha(0f);
+                scrollBottom.setScaleX(0.8f);
+                scrollBottom.setScaleY(0.8f);
+                scrollBottom.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(190)
+                        .setInterpolator(new android.view.animation.OvershootInterpolator(1.3f))
+                        .start();
+            }
         }
     }
 
