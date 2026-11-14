@@ -110,7 +110,7 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
         @Override
         public void run() {
             if (workingBarText != null && workingStartMs > 0 && !stopping) {
-                workingBarText.setText(getString(R.string.working_bar) + " "
+                workingBarText.setText(workingLabel() + " "
                         + liveDuration(System.currentTimeMillis() - workingStartMs)
                         + ctxSuffix());
             }
@@ -266,6 +266,9 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
     private boolean stallWarned;
     private String lastReportedError = "";
     private long lastReportedAt;
+    /** The one live "free limit - retrying" card, updated in place per attempt. */
+    private ChatItem retryNotice;
+    private int retryAttempt;
     private final Runnable stallTick = new Runnable() {
         @Override
         public void run() {
@@ -985,6 +988,32 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
                         if (!err.isEmpty()) reportError(err);
                     }
                 }
+            } else if ("session.status".equals(type)) {
+                String sid = str(props, "sessionID");
+                if (sessionId == null || sid.isEmpty() || sessionId.equals(sid)) {
+                    JsonObject status = props.has("status") && props.get("status").isJsonObject()
+                            ? props.getAsJsonObject("status") : null;
+                    String st = status == null ? "" : str(status, "type");
+                    if ("retry".equals(st)) {
+                        // The engine retries a rate-limited lane every ~2s and sends
+                        // NO message event - this status IS the error. Show it.
+                        lastSignalMs = System.currentTimeMillis();
+                        int attempt = 0;
+                        if (status.has("attempt") && status.get("attempt").isJsonPrimitive()) {
+                            try {
+                                attempt = status.get("attempt").getAsInt();
+                            } catch (Throwable ignored) {
+                            }
+                        }
+                        showRetryNotice(attempt, str(status, "message"));
+                    } else if ("busy".equals(st)) {
+                        lastSignalMs = System.currentTimeMillis();
+                        if (!busy && !stopping) setBusy(true);
+                    } else if ("idle".equals(st)) {
+                        lastSignalMs = System.currentTimeMillis();
+                        if (busy) finishTurn();
+                    }
+                }
             } else if ("session.error".equals(type)) {
                 String sid = str(props, "sessionID");
                 if (sessionId == null || sid.isEmpty() || sessionId.equals(sid)) {
@@ -1031,6 +1060,7 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
         if ("text".equals(ptype)) {
             String text = str(part, "text");
             if (TextUtils.isEmpty(text)) return;
+            clearRetryNotice();
             String mid = str(part, "messageID");
             if (messageRoles.get(mid) == null && sentTexts.contains(normalize(text))) {
                 messageRoles.put(mid, "user");
@@ -1086,6 +1116,7 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
 
             ChatItem item = existing;
             if (item == null) {
+                clearRetryNotice();
                 finishThoughts();
                 item = ChatItem.tool(pid);
                 addItem(item);
@@ -1123,6 +1154,7 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
                 // reasoning-start arrives with empty text — create the row NOW so
                 // the token deltas that follow have a home (this is what makes
                 // "Thinking" stream smoothly instead of popping in at the end).
+                clearRetryNotice();
                 item = ChatItem.thought(pid);
                 item.expanded = false;
                 item.streaming = true;
@@ -1405,7 +1437,9 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
 
 
     private void setBusy(boolean value) {
+        boolean wasBusy = busy;
         busy = value;
+        if (value && !wasBusy) retryAttempt = 0;
         ui.removeCallbacks(busyWatchdog);
         ui.removeCallbacks(stallTick);
         if (send != null) {
@@ -1431,10 +1465,68 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
         if (value) {
             lastSignalMs = System.currentTimeMillis();
             stallWarned = false;
-            if (workingBarText != null) workingBarText.setText(getString(R.string.working_bar));
+            if (workingBarText != null) workingBarText.setText(workingLabel());
             ui.postDelayed(workingTick, 1000);
             ui.postDelayed(busyWatchdog, 180_000L);
             ui.postDelayed(stallTick, 5000L);
+        }
+    }
+
+    /** Working-strip label: the live retry attempt wins over the plain "Working". */
+    private String workingLabel() {
+        return retryAttempt > 0
+                ? getString(R.string.working_retrying, retryAttempt)
+                : getString(R.string.working_bar);
+    }
+
+    /**
+     * A rate-limited lane answers with session.status "retry" every ~2s and no
+     * message event, so the chat used to sit on "Working" with no hint of why.
+     * Surface the real reason as ONE card that updates in place per attempt.
+     */
+    private void showRetryNotice(int attempt, String msg) {
+        retryAttempt = attempt;
+        String title = attempt > 0
+                ? getString(R.string.notice_retry_title, attempt)
+                : getString(R.string.notice_retry_title_plain);
+        String head = retryHead(msg);
+        String body = head.isEmpty()
+                ? getString(R.string.notice_retry_body)
+                : head + "\n\n" + getString(R.string.notice_retry_body);
+        if (retryNotice == null || items.indexOf(retryNotice) < 0) {
+            retryNotice = ChatItem.notice(title, body);
+            retryNotice.key = "retry-notice";
+            addItem(retryNotice);
+            showBanner(title, false);
+        } else {
+            retryNotice.title = title;
+            retryNotice.text = body;
+            rebind(retryNotice);
+        }
+        if (workingBarText != null && busy && !stopping) {
+            workingBarText.setText(workingLabel());
+        }
+    }
+
+    /** The engine's own retry line, minus the CLI-only "/model" hint. */
+    private static String retryHead(String msg) {
+        String m = msg == null ? "" : msg.trim();
+        int cut = m.indexOf("(this free window");
+        if (cut > 0) m = m.substring(0, cut).trim();
+        return m;
+    }
+
+    /** The lane recovered (real content arrived) - the retry card goes away. */
+    private void clearRetryNotice() {
+        retryAttempt = 0;
+        if (retryNotice == null) return;
+        int idx = items.indexOf(retryNotice);
+        retryNotice = null;
+        if (idx >= 0) {
+            ChatItem gone = items.remove(idx);
+            byKey.remove(gone.key);
+            adapter.notifyItemRemoved(idx);
+            updateEmpty();
         }
     }
 
@@ -1479,7 +1571,11 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
         setBusy(false);
         String low = raw == null ? "" : raw.toLowerCase(Locale.ROOT);
         if (isQuotaError(low)) {
-            addNotice(getString(R.string.notice_quota_title), getString(R.string.notice_quota_body));
+            // the live retry card already says exactly this - do not stack cards
+            boolean live = retryNotice != null && items.indexOf(retryNotice) >= 0;
+            if (!live) {
+                addNotice(getString(R.string.notice_quota_title), getString(R.string.notice_quota_body));
+            }
             showBanner(getString(R.string.notice_quota_title), false);
         } else if (low.contains("unauthorized") || low.contains("401")
                 || low.contains("invalid api key")) {
@@ -1510,6 +1606,7 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
             return;
         }
         if (busy) return;
+        clearRetryNotice();
         input.setText(lastUserText);
         input.setSelection(lastUserText.length());
         sendMessage();

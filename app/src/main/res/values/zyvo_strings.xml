@@ -64,6 +64,10 @@
     <string name="notice_auth_body">The lane key was refused (401). Open Settings → check the API key, then tap Retry.</string>
     <string name="notice_stall_title">No answer from the model</string>
     <string name="notice_stall_body">Most likely the free lane is rate-limited. zyvo retries on its own — switch mobile data / Wi-Fi for a fresh IP, then tap Retry. Engine logs (drawer) has the raw output.</string>
+    <string name="working_retrying">Retrying · attempt %1$d</string>
+    <string name="notice_retry_title">Free limit reached · attempt %1$d</string>
+    <string name="notice_retry_title_plain">Free limit reached</string>
+    <string name="notice_retry_body">Nothing is lost — the engine keeps retrying every 2s on its own. Tap Retry to send again now, or switch the model from the name below the chat. A fresh IP (mobile data / airplane mode) reopens the free window.</string>
     <string name="queued_fmt">Queued · %1$s</string>
     <string name="tap_expand">Tap to expand</string>
     <string name="tap_collapse">Tap to collapse</string>
