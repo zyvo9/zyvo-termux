@@ -235,3 +235,24 @@ main CSS `out/renderer/assets/styles-NK68EN_n.css`, 480KB, 59 keyframes).
 - Existing motion (kept): fadeIn rows (170ms, 6dp rise), word-by-word reveal
   32ms, braille tool spinner, sweep band on running tool, working-bar fade.
 - Build 41 green; APK served at .../zyvo-41.apk.
+
+## 2026-11-14 (apk-42) - streaming perf: why it stuttered, what fixed it
+- Symptom: word streaming felt laggy/jumpy, thinking row flickered.
+- Causes (all in the app, engine was fine):
+  1. revealTick did a FULL notifyItemChanged every 32ms -> whole row rebind:
+     plainMarkdown over the whole text, setText (full re-layout), footer,
+     action visibility, animateIn path.
+  2. step = max(3, backlog/8) at 32ms -> geometric catch-up, text stayed far
+     behind the model.
+  3. thought flush did a full rebind every 60ms and tail() used split("\n")
+     on the entire reasoning text (allocation per bind).
+  4. scrollIfPinned ran on every tick (60 scroll calls/s) -> bounce.
+  5. reasoning was capped with substring(0,6000) -> the live tail FROZE on
+     long thinking; now keeps the last 6000 chars.
+- Fix: ChatAdapter.PAYLOAD_STREAM + 3-arg onBindViewHolder -> bindStreamText /
+  bindStreamThought touch ONLY the TextView (and hide the footer/actions).
+  Reveal: 16ms tick, step = max(2, (backlog+3)/4), word snap only when
+  backlog > 32, full bind exactly once when the stream finishes.
+  tail(): backward lastIndexOf scan, no array allocation.
+  Scroll: scrollIfPinnedThrottled() max once per 60ms while pinned.
+- Verification gate used: Temp\zyvo\check_refs.py (braces + R refs) then CI.

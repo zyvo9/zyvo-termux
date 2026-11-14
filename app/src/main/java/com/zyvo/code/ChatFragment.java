@@ -322,7 +322,6 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
         workingBar = v.findViewById(R.id.working_bar);
         workingBarText = v.findViewById(R.id.working_text);
         workingSpinner = v.findViewById(R.id.working_spinner);
-        adapter.setNoticeAction(this::retryLast);
         queuedBar = v.findViewById(R.id.queued_bar);
         queuedText = v.findViewById(R.id.queued_text);
         View queuedCancel = v.findViewById(R.id.queued_cancel);
@@ -350,6 +349,7 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
 
 
         adapter = new ChatAdapter(requireContext(), items);
+        adapter.setNoticeAction(this::retryLast);
         list.setLayoutManager(new LinearLayoutManager(requireContext()));
         list.setAdapter(adapter);
         list.addOnScrollListener(new RecyclerView.OnScrollListener() {
