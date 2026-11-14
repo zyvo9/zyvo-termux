@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Zyvo Code</string>
     <string name="app_tagline">on-device AI agent</string>
@@ -7,13 +7,13 @@
     <string name="tab_files">Files</string>
     <string name="tab_settings">Settings</string>
 
-    <string name="composer_hint">Ask anything — I can run commands on your phone</string>
+    <string name="composer_hint">Ask anything â€” I can run commands on your phone</string>
     <string name="send">Send</string>
     <string name="stop">Stop</string>
     <string name="new_session">New session</string>
     <string name="new_chat">New chat</string>
     <string name="sessions">Sessions</string>
-    <string name="drawer_model_fmt">Model · %1$s</string>
+    <string name="drawer_model_fmt">Model Â· %1$s</string>
     <string name="session_rename">Rename</string>
     <string name="session_delete">Delete</string>
     <string name="session_actions">Session actions</string>
@@ -22,14 +22,14 @@
     <string name="empty_chat_title">What should I build?</string>
     <string name="empty_chat_hint">Zyvo runs on this phone. Ask anything, or start with one of these.</string>
 
-    <string name="engine_starting">Starting engine…</string>
+    <string name="engine_starting">Starting engineâ€¦</string>
     <string name="engine_ready">Engine ready</string>
     <string name="engine_down">Engine is not running</string>
     <string name="engine_start">Start engine</string>
     <string name="engine_restart">Restart engine</string>
     <string name="engine_logs">Engine logs</string>
 
-    <string name="terminal_hint">Command…</string>
+    <string name="terminal_hint">Commandâ€¦</string>
     <string name="terminal_run">Run</string>
     <string name="terminal_clear">Clear</string>
 
@@ -51,29 +51,46 @@
     <string name="chats">Chats</string>
     <string name="scroll_to_bottom">Scroll to latest</string>
     <string name="worked_for_fmt">Worked for %1$s</string>
-    <string name="worked_steps_fmt">Worked · %1$s</string>
-    <string name="working">Working…</string>
+    <string name="worked_steps_fmt">Worked Â· %1$s</string>
+    <string name="working">Workingâ€¦</string>
     <string name="working_bar">Working</string>
     <string name="tasks_title">Tasks</string>
     <string name="queued_cancel_desc">Cancel queued message</string>
-    <string name="stopping">Stopping…</string>
+    <string name="stopping">Stoppingâ€¦</string>
     <string name="retry_nothing">Nothing to retry yet</string>
     <string name="notice_quota_title">Free quota reached</string>
-    <string name="notice_quota_body">The free model lane hit its daily request limit. It resets automatically — zyvo keeps retrying and switches lanes. If it stays stuck, switch mobile data / Wi-Fi (fresh IP) and tap Retry.</string>
+    <string name="notice_quota_body">The free model lane hit its daily request limit. It resets automatically â€” zyvo keeps retrying and switches lanes. If it stays stuck, switch mobile data / Wi-Fi (fresh IP) and tap Retry.</string>
     <string name="notice_auth_title">Model key rejected</string>
-    <string name="notice_auth_body">The lane key was refused (401). Open Settings → check the API key, then tap Retry.</string>
+    <string name="notice_auth_body">The lane key was refused (401). Open Settings â†’ check the API key, then tap Retry.</string>
     <string name="notice_stall_title">No answer from the model</string>
-    <string name="notice_stall_body">Most likely the free lane is rate-limited. zyvo retries on its own — switch mobile data / Wi-Fi for a fresh IP, then tap Retry. Engine logs (drawer) has the raw output.</string>
-    <string name="working_retrying">Retrying · attempt %1$d</string>
-    <string name="notice_retry_title">Free limit reached · attempt %1$d</string>
+    <string name="notice_stall_body">Most likely the free lane is rate-limited. zyvo retries on its own â€” switch mobile data / Wi-Fi for a fresh IP, then tap Retry. Engine logs (drawer) has the raw output.</string>
+    <string name="working_retrying">Retrying Â· attempt %1$d</string>
+    <string name="notice_retry_title">Free limit reached Â· attempt %1$d</string>
     <string name="notice_retry_title_plain">Free limit reached</string>
-    <string name="notice_retry_body">Nothing is lost — the engine keeps retrying every 2s on its own. Tap Retry to send again now, or switch the model from the name below the chat. A fresh IP (mobile data / airplane mode) reopens the free window.</string>
-    <string name="queued_fmt">Queued · %1$s</string>
+    <string name="notice_retry_body">Nothing is lost â€” the engine keeps retrying every 2s on its own. Tap Retry to send again now, or switch the model from the name below the chat. A fresh IP (mobile data / airplane mode) reopens the free window.</string>
+    <string name="queued_fmt">Queued Â· %1$s</string>
     <string name="tap_expand">Tap to expand</string>
     <string name="tap_collapse">Tap to collapse</string>
-    <string name="lines_tap_expand">%1$d lines · tap to expand</string>
+    <string name="lines_tap_expand">%1$d lines Â· tap to expand</string>
     <string name="thinking">Thinking</string>
     <string name="thinking_of">Thinking: %1$s</string>
     <string name="thought">Thought</string>
     <string name="effort_default">Default</string>
-</resources>
+    <string name="thought_for">Thought for %1$s</string>
+    <string name="interrupted">interrupted</string>
+    <string name="regenerate">Regenerate</string>
+    <string name="share">Share</string>
+    <string name="share_failed">No app to share with</string>
+    <string name="error_panel_title">Request failed</string>
+    <string name="err_auth_title">Sign-in needed</string>
+    <string name="err_context_title">Context full</string>
+    <string name="err_output_title">Reply cut short</string>
+    <string name="err_api_title">Provider error</string>
+    <string name="err_structured_title">Bad tool output</string>
+    <string name="err_unknown_title">Something went wrong</string>
+    <string name="err_aborted_body">You stopped this reply.</string>
+    <string name="err_context_body">The conversation is too long for this model. Start a new chat to keep going.</string>
+    <string name="err_output_body">The model hit its output limit. Ask it to continue.</string>
+    <string name="err_auth_body">The provider rejected the key. Open Settings and check the model key.</string>    <string name="regenerate_busy">Wait for this turn to finish first</string></resources>
+
+

@@ -1,56 +1,56 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Dark tokens — zyvo CLI theme (packages/tui/src/theme/assets/zyvo.json,
-     warm coffee/amber palette; theme.tsx defaults to "zyvo"). -->
+<!-- Grok-black palette (user choice 1A, reference: Grok app screenshot
+     2026-11-14). Pure black base, white text, amber ONLY on the send button. -->
 <resources>
     <!-- base surfaces -->
-    <color name="bg">#0E0C09</color>
-    <color name="bg_alt">#16130E</color>
-    <color name="header">#0E0C09</color>
-    <color name="panel">#16130E</color>
-    <color name="card">#16130E</color>
-    <color name="card_alt">#1F1B14</color>
-    <color name="tool_bg">#16130E</color>
-    <color name="markdown_code">#1F1B14</color>
-    <color name="surface">#14F2EDE2</color>
-    <color name="surface_hover">#1FF2EDE2</color>
-    <color name="selected">#1FF2EDE2</color>
+    <color name="bg">#000000</color>
+    <color name="bg_alt">#0A0A0A</color>
+    <color name="header">#000000</color>
+    <color name="panel">#141414</color>
+    <color name="card">#1A1A1A</color>
+    <color name="card_alt">#202020</color>
+    <color name="tool_bg">#141414</color>
+    <color name="markdown_code">#141414</color>
+    <color name="surface">#14FFFFFF</color>
+    <color name="surface_hover">#1FFFFFFF</color>
+    <color name="selected">#1FFFFFFF</color>
 
     <!-- text -->
-    <color name="text_primary">#F2EDE2</color>
-    <color name="text_secondary">#8A8172</color>
-    <color name="text_disabled">#5C5340</color>
-    <color name="text_inverse">#0E0C09</color>
+    <color name="text_primary">#FFFFFF</color>
+    <color name="text_secondary">#9A9A9A</color>
+    <color name="text_disabled">#6B6B6B</color>
+    <color name="text_inverse">#000000</color>
     <color name="link">#E8A33D</color>
 
     <!-- borders -->
-    <color name="line">#29241B</color>
-    <color name="line_strong">#3E3729</color>
+    <color name="line">#262626</color>
+    <color name="line_strong">#333333</color>
 
-    <!-- brand / actions (zyvo amber) -->
+    <!-- brand / actions (amber kept for the send button) -->
     <color name="accent">#E8A33D</color>
     <color name="accent_dark">#FFC27A</color>
-    <color name="accent_container">#29241B</color>
+    <color name="accent_container">#262626</color>
     <color name="accent_on_container">#E8A33D</color>
     <color name="primary">#E8A33D</color>
-    <color name="on_primary">#0E0C09</color>
-    <color name="secondary">#1F1B14</color>
+    <color name="on_primary">#000000</color>
+    <color name="secondary">#1A1A1A</color>
     <color name="secondary_text">#D9B45A</color>
 
     <!-- status -->
-    <color name="danger">#E06C75</color>
-    <color name="danger_surface">#29E06C75</color>
+    <color name="danger">#FF6B6B</color>
+    <color name="danger_surface">#29FF6B6B</color>
     <color name="ok">#7FD88F</color>
     <color name="warn">#F5A742</color>
-    <color name="warn_bg">#2A2013</color>
+    <color name="warn_bg">#201810</color>
 
     <!-- chat / code -->
-    <color name="user_bubble">#1F1B14</color>
-    <color name="code_bg">#1F1B14</color>
-    <color name="code_text">#F2EDE2</color>
-    <color name="terminal_bg">#0E0C09</color>
-    <color name="terminal_fg">#F2EDE2</color>
+    <color name="user_bubble">#2A2A2A</color>
+    <color name="code_bg">#141414</color>
+    <color name="code_text">#FFFFFF</color>
+    <color name="terminal_bg">#000000</color>
+    <color name="terminal_fg">#FFFFFF</color>
     <color name="terminal_cursor">#E8A33D</color>
 
-    <color name="white">#F2EDE2</color>
-    <color name="black">#0E0C09</color>
+    <color name="white">#FFFFFF</color>
+    <color name="black">#000000</color>
 </resources>

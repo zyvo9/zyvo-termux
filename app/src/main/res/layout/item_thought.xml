@@ -1,11 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- "Thought for 4s >" row (Grok reference screenshot 2026-11-14). -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:animateLayoutChanges="true"
     android:orientation="vertical"
-    android:paddingStart="14dp"
-    android:paddingEnd="14dp"
+    android:paddingStart="18dp"
+    android:paddingEnd="18dp"
     android:paddingTop="6dp"
     android:paddingBottom="2dp">
 
@@ -16,36 +17,36 @@
         android:clickable="true"
         android:focusable="true"
         android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:paddingTop="2dp"
-        android:paddingBottom="2dp">
+        android:minHeight="28dp"
+        android:orientation="horizontal">
 
         <ImageView
             android:id="@+id/thought_spinner"
             android:layout_width="15dp"
             android:layout_height="15dp"
             android:contentDescription="@null"
-            android:src="@drawable/ic_lc_brain"
-            android:tint="@color/text_disabled" />
+            android:src="@drawable/ic_lc_lightbulb"
+            android:tint="@color/text_secondary" />
 
         <TextView
             android:id="@+id/thought_title"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
             android:layout_weight="1"
             android:ellipsize="end"
             android:maxLines="1"
             android:text="Thinking"
             android:textColor="@color/text_secondary"
-            android:textSize="12sp" />
+            android:textSize="13sp" />
 
         <ImageView
             android:id="@+id/thought_chevron"
             android:layout_width="12dp"
             android:layout_height="12dp"
-            android:layout_marginStart="6dp"
+            android:layout_marginStart="4dp"
             android:contentDescription="@null"
-            android:src="@drawable/ic_chevron_down"
+            android:src="@drawable/ic_lc_chevron_down"
             android:tint="@color/text_secondary"
             android:visibility="gone" />
     </LinearLayout>
@@ -55,7 +56,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="6dp"
-        android:layout_marginStart="22dp"
+        android:layout_marginStart="23dp"
         android:lineSpacingExtra="3dp"
         android:textColor="@color/text_secondary"
         android:textIsSelectable="true"

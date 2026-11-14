@@ -51,6 +51,10 @@ public final class ChatItem {
     /** The `+N −N` chip was tapped — show the changed lines inline. */
     public boolean showDiff = false;
     public boolean error = false;
+    /** The turn was stopped by the user — footer shows "interrupted". */
+    public boolean interrupted = false;
+    /** Engine error name (MessageAbortedError, ProviderAuthError, APIError, ...). */
+    public String errorName = "";
     /** Tool cards belonging to one "Worked for ..." summary share a group. */
     public int group = 0;
     public long timeMs = 0;

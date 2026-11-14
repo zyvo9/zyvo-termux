@@ -5,6 +5,7 @@ import com.termux.R;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
+import android.content.Intent;
 import android.graphics.Typeface;
 import android.os.Handler;
 import android.os.Looper;
@@ -51,6 +52,7 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
     private static final int V_WORKING = 5;
     private static final int V_TODO = 6;
     private static final int V_NOTICE = 7;
+    private static final int V_ERROR = 8;
 
     static final String[] FRAMES = {"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"};
 
@@ -123,6 +125,8 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
                 return V_TODO;
             case ChatItem.NOTICE:
                 return V_NOTICE;
+            case ChatItem.ERROR:
+                return V_ERROR;
             default:
                 return V_ASSISTANT;
         }
@@ -152,6 +156,9 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
         }
         if (viewType == V_NOTICE) {
             return new NoticeVH(inf.inflate(R.layout.item_notice, parent, false));
+        }
+        if (viewType == V_ERROR) {
+            return new ErrorVH(inf.inflate(R.layout.item_error, parent, false));
         }
         return new MessageVH(inf.inflate(R.layout.item_message_assistant, parent, false));
     }
@@ -225,6 +232,8 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
             bindTodo((TodoVH) holder, item);
         } else if (holder instanceof NoticeVH) {
             bindNotice((NoticeVH) holder, item);
+        } else if (holder instanceof ErrorVH) {
+            bindError((ErrorVH) holder, item);
         }
     }
 
@@ -236,7 +245,6 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
         }
         if (holder instanceof ToolVH) {
             ((ToolVH) holder).stopTicker();
-            ((ToolVH) holder).stopSweep();
         }
         super.onViewRecycled(holder);
     }
@@ -282,6 +290,24 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
                     UiUtil.toast(ctx, ctx.getString(R.string.copied));
                 }
             });
+            h.btnRegen.setOnClickListener(v -> {
+                if (messageActions != null) messageActions.onRegenerate(item);
+            });
+            h.btnShare.setOnClickListener(v -> shareText(item.text));
+        }
+    }
+
+    /** Grok-style share action under a reply. */
+    private void shareText(String text) {
+        Intent send = new Intent(Intent.ACTION_SEND);
+        send.setType("text/plain");
+        send.putExtra(Intent.EXTRA_TEXT, text == null ? "" : text);
+        try {
+            Intent chooser = Intent.createChooser(send, ctx.getString(R.string.share));
+            chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            ctx.startActivity(chooser);
+        } catch (Throwable t) {
+            UiUtil.toast(ctx, ctx.getString(R.string.share_failed));
         }
     }
 
@@ -367,12 +393,16 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
         return m + "m " + s + "s";
     }
 
-    /** Footer under a reply: "12:24 PM · 5s" (duration = how long the turn took). */
+    /** Footer under a reply: "12:24 PM · 5s · interrupted". */
     private String footer(ChatItem item) {
         String t = stamp(item.timeMs);
         String d = item.durationMs > 0 ? fmtDuration(item.durationMs) : "";
-        if (d.isEmpty()) return t;
-        return TextUtils.isEmpty(t) ? d : t + " · " + d;
+        String base = TextUtils.isEmpty(t) ? d : (d.isEmpty() ? t : t + " · " + d);
+        if (item.interrupted) {
+            return base.isEmpty() ? ctx.getString(R.string.interrupted)
+                    : base + " · " + ctx.getString(R.string.interrupted);
+        }
+        return base;
     }
 
     // ------------------------------------------------------------- thought
@@ -398,11 +428,10 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
             h.stopShimmer();
             h.spinner.setVisibility(View.VISIBLE);
             h.spinner.setAlpha(0.75f);
-            StringBuilder sb = new StringBuilder(ctx.getString(R.string.thought));
-            if (hasTitle) sb.append(": ").append(item.title);
             String d = fmtDuration(item.durationMs);
-            if (!d.isEmpty()) sb.append(" · ").append(d);
-            h.title.setText(sb.toString());
+            h.title.setText(d.isEmpty()
+                    ? ctx.getString(R.string.thought)
+                    : ctx.getString(R.string.thought_for, d));
             h.chevron.setVisibility(View.VISIBLE);
             h.chevron.setRotation(item.expanded ? 180f : 0f);
         }
@@ -522,13 +551,8 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
 
         h.spinner.setVisibility(running ? View.VISIBLE : View.GONE);
         h.icon.setVisibility(running ? View.GONE : View.VISIBLE);
-        if (running) {
-            h.startTicker();
-            if (!reduceMotion) h.startSweep();
-        } else {
-            h.stopTicker();
-            h.stopSweep();
-        }
+        if (running) h.startTicker();
+        else h.stopTicker();
 
         h.icon.setImageResource(iconFor(item.toolName, item.command));
         h.icon.setColorFilter(ContextCompat.getColor(ctx,
@@ -536,43 +560,22 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
 
         String clean = cleanCommand(item.command);
         String tool = item.toolName == null ? "" : item.toolName.toLowerCase(Locale.ROOT);
-        // CLI: Shell / Write / Edit render as a BlockTool panel (left border),
-        // every other tool is a one-line inline row.
-        boolean block = isShell(item.toolName, item.command)
-                || tool.contains("write") || tool.contains("edit") || tool.contains("patch");
 
-        int padH = dp(block ? 9 : 0);
-        int padV = dp(block ? 6 : 0);
-        h.inner.setPadding(padH, padV, padH, padV);
-        if (block) {
-            h.card.setBackgroundResource(R.drawable.bg_block);
-            h.leftBorder.setVisibility(View.VISIBLE);
-            h.chevron.setVisibility(View.VISIBLE);
-        } else {
-            h.card.setBackground(null);
-            h.leftBorder.setVisibility(View.GONE);
-            h.chevron.setVisibility(View.GONE);
-        }
+        // Reference layout (user screenshot): [icon] Ran command  +1 -1  Title
+        h.label.setText(labelFor(item.toolName, item.status));
+        h.label.setTextColor(ContextCompat.getColor(ctx,
+                failed ? R.color.danger : R.color.text_secondary));
 
         String desc = !TextUtils.isEmpty(item.label) ? item.label : clean;
         if (TextUtils.isEmpty(desc)) desc = firstLine(item.output);
         desc = desc == null ? "" : desc.trim();
-        if (block) {
-            // BlockTool title: "# description" — the command itself only shows
-            // once the block is opened.
-            h.name.setText("# " + (desc.isEmpty() ? titleFor(item.toolName, clean) : firstLine(desc)));
-            h.command.setVisibility(View.GONE);
-        } else {
-            h.name.setText(titleFor(item.toolName, clean));
-            h.command.setText(desc);
-            h.command.setVisibility(desc.isEmpty() ? View.GONE : View.VISIBLE);
-        }
+        String title = desc.isEmpty() ? titleFor(item.toolName, clean) : firstLine(desc);
+        if (title.length() > 90) title = title.substring(0, 89) + "…";
+        h.name.setText(title);
         h.name.setTextColor(ContextCompat.getColor(ctx,
-                failed ? R.color.danger : R.color.text_secondary));
-        h.command.setTextColor(ContextCompat.getColor(ctx,
-                failed ? R.color.danger : R.color.text_disabled));
+                failed ? R.color.danger : R.color.text_primary));
 
-        // --- +N −N chip: tap to reveal the changed lines right here
+        // +N −N sits IN FRONT of the title for writes/edits.
         int add = 0;
         int del = 0;
         if (!TextUtils.isEmpty(item.diff)) {
@@ -594,20 +597,23 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
             h.diff.setVisibility(View.GONE);
         }
 
-        // --- body: only block tools carry a command line + output
+        // Body: command + output + diff. Tap stages 10 lines -> everything -> closed.
         boolean hasOutput = !TextUtils.isEmpty(item.output);
-        boolean hasCmd = block && !TextUtils.isEmpty(clean);
+        boolean hasCmd = !TextUtils.isEmpty(clean);
         int total = hasOutput ? countLines(item.output) : 0;
-        boolean open = block && (item.expanded || failed || running);
+        boolean open = item.expanded || item.full || failed || running;
         int maxLines = item.full ? 400 : (item.expanded ? 10 : 3);
         if (failed && !item.expanded) maxLines = 8;
 
+        boolean showBody = open && (hasCmd || hasOutput || hasDiff);
+        h.body.setVisibility(showBody ? View.VISIBLE : View.GONE);
+
         h.cmdLine.setVisibility(open && hasCmd ? View.VISIBLE : View.GONE);
-        if (open && hasCmd) h.cmdLine.setText("$ " + clean);
+        if (open && hasCmd) h.cmdLine.setText(clean);
 
         h.output.setVisibility(open && hasOutput ? View.VISIBLE : View.GONE);
         if (open && hasOutput) {
-            boolean tailMode = running && !item.expanded && total > maxLines;
+            boolean tailMode = running && !item.expanded && !item.full && total > maxLines;
             h.output.setText(tailMode ? tail(item.output, maxLines)
                     : (item.full ? cap(item.output, 400) : preview(item.output, maxLines)));
             h.output.setMaxLines(maxLines);
@@ -623,14 +629,16 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
                     : ctx.getString(R.string.lines_tap_expand, total));
         }
 
-        h.chevron.setRotation(item.expanded ? 180f : 0f);
+        boolean canOpen = hasCmd || hasOutput || hasDiff;
+        h.chevron.setVisibility(canOpen ? View.VISIBLE : View.GONE);
+        h.chevron.setRotation(open ? 180f : 0f);
 
         // --- diff body (real +/− lines)
         boolean showDiff = item.showDiff && hasDiff;
         h.diffBody.setVisibility(showDiff ? View.VISIBLE : View.GONE);
         if (showDiff) {
             h.diffBody.setText(diffSpans(item.diff));
-            h.diffBody.setMaxLines(300);
+            h.diffBody.setMaxLines(item.full ? 400 : 10);
             h.diffBody.setEllipsize(TextUtils.TruncateAt.END);
         }
 
@@ -645,13 +653,37 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
         });
 
         h.card.setOnClickListener(v -> {
-            if (block) nextStage(item);
-            else if (hasDiff) item.showDiff = !item.showDiff;
+            nextStage(item);
             notifyItemChanged(position);
         });
     }
 
-    /** 1 line → 40 lines → everything → back to 1 line. */
+    /** Codex-style verb for the row: "Ran command", "Writing file", ... */
+    private static String labelFor(String tool, String status) {
+        String n = tool == null ? "" : tool.toLowerCase(Locale.ROOT);
+        boolean done = "completed".equals(status);
+        if (n.contains("bash") || n.contains("shell") || n.contains("exec")
+                || n.contains("terminal")) {
+            return done ? "Ran command" : "Running command";
+        }
+        if (n.contains("write")) return done ? "Wrote file" : "Writing file";
+        if (n.contains("patch")) return done ? "Applied patch" : "Applying patch";
+        if (n.contains("edit")) return done ? "Edited file" : "Editing file";
+        if (n.equals("read") || n.startsWith("read_") || n.endsWith("read")) {
+            return done ? "Read file" : "Reading file";
+        }
+        if (n.contains("grep")) return done ? "Searched code" : "Searching code";
+        if (n.contains("glob") || n.contains("find")) return done ? "Found files" : "Finding files";
+        if (n.contains("list")) return done ? "Listed files" : "Listing files";
+        if (n.contains("webfetch") || n.contains("web") || n.contains("http")) {
+            return done ? "Fetched page" : "Fetching page";
+        }
+        if (n.contains("task") || n.contains("agent")) return "Subagent";
+        if (n.contains("todo")) return "Tasks";
+        return done ? "Used tool" : "Using tool";
+    }
+
+    /** 10 lines → everything → closed. */
     private static void nextStage(ChatItem item) {
         if (!item.expanded) {
             item.expanded = true;
@@ -781,19 +813,18 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
         return "Tool";
     }
 
-    /** Lucide glyph per tool class (extracted from ZCode's icon set, ISC). */
+    /** Lucide glyph per tool class (Codex/Grok-style outlined glyphs). */
     private static int iconFor(String tool, String command) {
         String n = tool == null ? "" : tool.toLowerCase(Locale.ROOT);
         if (n.contains("bash") || n.contains("shell") || n.contains("exec")
-                || n.contains("terminal")) return R.drawable.ic_lc_terminal;
+                || n.contains("terminal")) return R.drawable.ic_lc_square_terminal;
         if (n.contains("todo")) return R.drawable.ic_lc_list_checks;
         if (n.contains("glob") || n.contains("find")) return R.drawable.ic_lc_folder_search;
         if (n.equals("read") || n.startsWith("read_") || n.endsWith("read")) {
             return R.drawable.ic_lc_file_text;
         }
-        if (n.contains("edit") || n.contains("write") || n.contains("patch")) {
-            return R.drawable.ic_lc_pen_line;
-        }
+        if (n.contains("write")) return R.drawable.ic_lc_file_pen;
+        if (n.contains("edit") || n.contains("patch")) return R.drawable.ic_lc_pen_line;
         if (n.contains("web") || n.contains("fetch") || n.contains("http")) {
             return R.drawable.ic_lc_globe;
         }
@@ -803,7 +834,7 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
             return R.drawable.ic_lc_bot;
         }
         if (n.contains("skill")) return R.drawable.ic_lc_sparkles;
-        if (command != null && !command.isEmpty()) return R.drawable.ic_lc_terminal;
+        if (command != null && !command.isEmpty()) return R.drawable.ic_lc_square_terminal;
         return R.drawable.ic_lc_wrench;
     }
 
@@ -814,6 +845,8 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
         final View actions;
         final TextView time;
         final ImageButton btnCopy;
+        final ImageButton btnRegen;
+        final ImageButton btnShare;
 
         MessageVH(@NonNull View v) {
             super(v);
@@ -821,6 +854,31 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
             actions = v.findViewById(R.id.actions);
             time = v.findViewById(R.id.time);
             btnCopy = v.findViewById(R.id.btn_copy);
+            btnRegen = v.findViewById(R.id.btn_regen);
+            btnShare = v.findViewById(R.id.btn_share);
+        }
+    }
+
+    /** Fragment hook for the action row under a reply. */
+    public interface MessageActions {
+        /** Regenerate the reply at {@code item} (re-sends the prompt above it). */
+        void onRegenerate(ChatItem item);
+    }
+
+    private MessageActions messageActions;
+
+    public void setMessageActions(MessageActions actions) {
+        this.messageActions = actions;
+    }
+
+    static final class ErrorVH extends RecyclerView.ViewHolder {
+        final TextView title;
+        final TextView text;
+
+        ErrorVH(@NonNull View v) {
+            super(v);
+            title = v.findViewById(R.id.error_title);
+            text = v.findViewById(R.id.error_text);
         }
     }
 
@@ -907,6 +965,14 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
         }
     }
 
+    /** Engine error panel under the reply (left red border + title + message). */
+    private void bindError(ErrorVH h, ChatItem item) {
+        animateIn(h.itemView, item);
+        h.title.setText(TextUtils.isEmpty(item.title)
+                ? ctx.getString(R.string.error_panel_title) : item.title);
+        h.text.setText(item.text == null ? "" : item.text);
+    }
+
     static final class TodoVH extends RecyclerView.ViewHolder {
         final TextView count;
         final android.widget.LinearLayout rows;
@@ -946,7 +1012,7 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
             final int w = (int) (150 * d);
             if (gradient == null) {
                 gradient = new android.graphics.LinearGradient(0f, 0f, w, 0f,
-                        new int[]{0x668A8172, 0xFFF2EDE2, 0x668A8172},
+                        new int[]{0x666B6B6B, 0xFFFFFFFF, 0x666B6B6B},
                         new float[]{0f, 0.5f, 1f},
                         android.graphics.Shader.TileMode.CLAMP);
             }
@@ -986,65 +1052,33 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
 
     static final class ToolVH extends TickingVH {
         final View card;
-        final View leftBorder;
-        final View inner;
+        final View body;
         final TextView spinner;
         final ImageView icon;
+        final TextView label;
         final TextView name;
-        final TextView command;
         final TextView cmdLine;
         final TextView diff;
         final TextView output;
         final TextView expand;
         final TextView diffBody;
         final ImageView chevron;
-        final View sweep;
-        android.animation.ObjectAnimator sweepAnim;
 
         ToolVH(@NonNull View v) {
             super(v);
             card = v.findViewById(R.id.tool_card);
-            leftBorder = v.findViewById(R.id.left_border);
-            inner = v.findViewById(R.id.tool_inner);
+            body = v.findViewById(R.id.tool_body);
             spinner = v.findViewById(R.id.tool_spinner);
             icon = v.findViewById(R.id.tool_icon);
+            label = v.findViewById(R.id.tool_label);
             name = v.findViewById(R.id.tool_name);
-            command = v.findViewById(R.id.command);
             cmdLine = v.findViewById(R.id.cmd_line);
             diff = v.findViewById(R.id.diff);
             output = v.findViewById(R.id.output);
             expand = v.findViewById(R.id.expand);
             diffBody = v.findViewById(R.id.diff_body);
             chevron = v.findViewById(R.id.chevron);
-            sweep = v.findViewById(R.id.sweep);
             spinner.setText(ChatAdapter.FRAMES[0]);
-        }
-
-        void startSweep() {
-            if (sweepAnim != null || sweep == null) return;
-            sweep.setVisibility(View.VISIBLE);
-            sweepAnim = android.animation.ObjectAnimator.ofFloat(sweep,
-                    "translationX", -1f, 1f);
-            sweepAnim.setDuration(1300);
-            sweepAnim.setInterpolator(new android.view.animation.LinearInterpolator());
-            sweepAnim.setRepeatCount(android.animation.ValueAnimator.INFINITE);
-            sweepAnim.setRepeatMode(android.animation.ValueAnimator.RESTART);
-            sweepAnim.addUpdateListener(a -> {
-                float f = (float) a.getAnimatedValue();
-                sweep.setTranslationX(f * sweep.getWidth());
-            });
-            sweepAnim.start();
-        }
-
-        void stopSweep() {
-            if (sweepAnim != null) {
-                sweepAnim.cancel();
-                sweepAnim = null;
-            }
-            if (sweep != null) {
-                sweep.setVisibility(View.GONE);
-                sweep.setTranslationX(0f);
-            }
         }
 
         @Override

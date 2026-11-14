@@ -353,6 +353,7 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
 
         adapter = new ChatAdapter(requireContext(), items);
         adapter.setNoticeAction(this::retryLast);
+        adapter.setMessageActions(this::regenerateReply);
         list.setLayoutManager(new LinearLayoutManager(requireContext()));
         list.setAdapter(adapter);
         list.addOnScrollListener(new RecyclerView.OnScrollListener() {
@@ -984,8 +985,9 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
                 if (sessionId == null || evSid.isEmpty() || sessionId.equals(evSid)) {
                     lastSignalMs = System.currentTimeMillis();
                     if (info.has("error") && !info.get("error").isJsonNull()) {
-                        String err = errorText(info.get("error"));
-                        if (!err.isEmpty()) reportError(err);
+                        JsonElement el = info.get("error");
+                        String err = errorText(el);
+                        if (!err.isEmpty()) reportError(errorName(el), err);
                     }
                 }
             } else if ("session.status".equals(type)) {
@@ -1017,9 +1019,10 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
             } else if ("session.error".equals(type)) {
                 String sid = str(props, "sessionID");
                 if (sessionId == null || sid.isEmpty() || sessionId.equals(sid)) {
-                    String err = props.has("error") ? errorText(props.get("error")) : "";
+                    JsonElement el = props.has("error") ? props.get("error") : props;
+                    String err = errorText(el);
                     if (err.isEmpty()) err = errorText(props);
-                    reportError(err);
+                    reportError(errorName(el), err);
                 }
             } else if (type.startsWith("permission")) {
                 String pid = str(props, "id");
@@ -1369,9 +1372,9 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
         // safety net: if the engine never sends session.idle after the abort
         ui.postDelayed(() -> {
             if (stopping && busy) {
+                markTurnDuration();
                 stopping = false;
                 removeWorking();
-                markTurnDuration();
                 setBusy(false);
             }
         }, 8000);
@@ -1386,8 +1389,32 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
         ChatItem ci = byKey.get(turnAssistantKey);
         if (ci == null || ci.hidden || TextUtils.isEmpty(ci.text)) return;
         ci.durationMs = dur;
+        if (stopping) ci.interrupted = true;
         int idx = items.indexOf(ci);
         if (idx >= 0) adapter.notifyItemChanged(idx);
+    }
+
+    /** Regenerate action under a reply: re-sends the prompt that produced it. */
+    private void regenerateReply(ChatItem reply) {
+        if (busy) {
+            UiUtil.toast(requireContext(), getString(R.string.regenerate_busy));
+            return;
+        }
+        String prompt = null;
+        int idx = items.indexOf(reply);
+        for (int i = idx - 1; i >= 0; i--) {
+            ChatItem c = items.get(i);
+            if (c.kind == ChatItem.USER && !TextUtils.isEmpty(c.text)) {
+                prompt = c.text;
+                break;
+            }
+        }
+        if (TextUtils.isEmpty(prompt)) prompt = lastUserText;
+        if (TextUtils.isEmpty(prompt)) return;
+        clearRetryNotice();
+        input.setText(prompt);
+        input.setSelection(prompt.length());
+        sendMessage();
     }
 
     /** Busy + typed text = queue it; busy + empty input = the stop button. */
@@ -1560,6 +1587,15 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
 
     /** Shows a real engine/provider error as a card the user can act on. */
     private void reportError(String raw) {
+        reportError("", raw);
+    }
+
+    /**
+     * Same, but keeps the engine's error TYPE so each class renders the right
+     * panel (aborted = footer only, auth = settings hint, context overflow =
+     * "start a new chat", ...). Mirrors the CLI's error union.
+     */
+    private void reportError(String name, String raw) {
         String text = friendlyError(raw);
         long now = System.currentTimeMillis();
         if (text.equals(lastReportedError) && now - lastReportedAt < 10_000L) return;
@@ -1570,6 +1606,35 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
         markTurnDuration();
         setBusy(false);
         String low = raw == null ? "" : raw.toLowerCase(Locale.ROOT);
+        String n = name == null ? "" : name;
+
+        if (n.contains("MessageAbortedError") || low.contains("messageaborted")) {
+            // The user pressed stop — the reply footer says "interrupted".
+            return;
+        }
+        if (n.contains("ContextOverflowError") || low.contains("context length")
+                || low.contains("context window") || low.contains("too many tokens")) {
+            addError(getString(R.string.err_context_title), getString(R.string.err_context_body));
+            showBanner(getString(R.string.err_context_title), false);
+            return;
+        }
+        if (n.contains("MessageOutputLengthError") || low.contains("max output tokens")
+                || low.contains("output length")) {
+            addError(getString(R.string.err_output_title), getString(R.string.err_output_body));
+            showBanner(getString(R.string.err_output_title), false);
+            return;
+        }
+        if (n.contains("StructuredOutputError")) {
+            addError(getString(R.string.err_structured_title), text);
+            showBanner(getString(R.string.err_structured_title), false);
+            return;
+        }
+        if (n.contains("ProviderAuthError") || low.contains("unauthorized") || low.contains("401")
+                || low.contains("invalid api key")) {
+            addNotice(getString(R.string.notice_auth_title), getString(R.string.notice_auth_body));
+            showBanner(getString(R.string.notice_auth_title), false);
+            return;
+        }
         if (isQuotaError(low)) {
             // the live retry card already says exactly this - do not stack cards
             boolean live = retryNotice != null && items.indexOf(retryNotice) >= 0;
@@ -1577,14 +1642,19 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
                 addNotice(getString(R.string.notice_quota_title), getString(R.string.notice_quota_body));
             }
             showBanner(getString(R.string.notice_quota_title), false);
-        } else if (low.contains("unauthorized") || low.contains("401")
-                || low.contains("invalid api key")) {
-            addNotice(getString(R.string.notice_auth_title), getString(R.string.notice_auth_body));
-            showBanner(getString(R.string.notice_auth_title), false);
-        } else {
-            addItem(ChatItem.error(text));
-            showBanner("Engine reported an error — see chat", false);
+            return;
         }
+        String title = n.contains("APIError") ? getString(R.string.err_api_title)
+                : getString(R.string.error_panel_title);
+        addError(title, text);
+        showBanner(getString(R.string.error_panel_title), false);
+    }
+
+    /** Adds the red-bordered error panel under the reply. */
+    private void addError(String title, String body) {
+        ChatItem e = ChatItem.error(body);
+        e.title = title == null ? "" : title;
+        addItem(e);
     }
 
     private static boolean isQuotaError(String low) {
@@ -1632,6 +1702,18 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
     /** Digs the human message out of an engine error object. */
     private static String errorText(JsonElement el) {
         return errorText(el, 0);
+    }
+
+    /** Engine error type name (MessageAbortedError, ProviderAuthError, ...). */
+    private static String errorName(JsonElement el) {
+        if (el == null || !el.isJsonObject()) return "";
+        JsonObject o = el.getAsJsonObject();
+        String n = str(o, "name");
+        if (!n.isEmpty()) return n;
+        if (o.has("data") && o.get("data").isJsonObject()) {
+            return str(o.getAsJsonObject("data"), "name");
+        }
+        return "";
     }
 
     private static String errorText(JsonElement el, int depth) {
