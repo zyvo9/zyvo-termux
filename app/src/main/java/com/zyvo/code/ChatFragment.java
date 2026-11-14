@@ -1782,13 +1782,7 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
             for (JsonElement pe : parts) {
                 if (!pe.isJsonObject()) continue;
                 JsonObject part = pe.getAsJsonObject();
-        String ptype = str(part, "type");
-        if (!TextUtils.isEmpty(ptype)) partTypes.put(pid, ptype);
-        // deltas can overtake the first snapshot on a slow link — replay them now
-        StringBuilder pend = pendingDeltas.remove(pid);
-        if (pend != null && !TextUtils.isEmpty(ptype)) {
-            applyDelta(pid, str(part, "messageID"), ptype, pend.toString());
-        }
+                String ptype = str(part, "type");
 
                 String pid = str(part, "id");
 

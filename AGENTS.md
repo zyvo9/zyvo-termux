@@ -162,3 +162,29 @@ main CSS `out/renderer/assets/styles-NK68EN_n.css`, 480KB, 59 keyframes).
   apktool 2.11.1 at `C:\Users\Admin\Tools\apktool`. REA `load_apk` with full
   resources OOMs on this 3.4GB laptop -> use `jadx --no-res --single-class <cls>`
   or apktool smali + grep.
+
+## 2026-11-14 (apk-38) — tool cards + real token streaming
+- Tool rows are now CARDS for every tool (g_tool: card #16171A + 1dp line,
+  r10, padding 9dp). Stage cycle on tap: 1 line -> 40 lines -> all -> 1 line
+  (ChatItem.expanded + ull, ChatAdapter.nextStage). Running tools show a
+  3-line live TAIL; failed tools 6 lines; meta line "N lines · tap to expand".
+- +N −N is a pill (g_diff_pill) that toggles ChatItem.showDiff and renders
+  the real diff inline (diffSpans: + green / - red / @@ dim, 300-line cap).
+- STREAMING ROOT CAUSE: the engine publishes token-level message.part.delta
+  {sessionID, messageID, partID, field:"text", delta} for BOTH reasoning and
+  answer text (verified inside the shipped libzyvo.so of apk-37; engine source
+  packages/opencode/src/session/processor.ts:398/785). message.part.updated
+  only fires at part START (empty text) and END — our client ignored deltas, so
+  "Thinking" appeared fully formed together with the first tool call. Now:
+  ChatFragment.handlePartDelta -> pplyDelta, partTypes map (pid->type),
+  pendingDeltas buffer for deltas that overtake the snapshot, thought rows
+  created on the empty reasoning snapshot, dirtyThoughts flushed every 60ms.
+- Second smoothness bug: startReveal() used to emoveCallbacks + repost every
+  token, so a fast stream postponed the reveal forever (text appeared only when
+  the stream paused). Now guarded by evealScheduled (one queued tick at a
+  time); same guard for 	houghtScheduled.
+- Thought rows now show a live 2-line dim TAIL while streaming (indThought),
+  so reasoning is visible as it arrives, not only after expand.
+- Verified resource refs with Temp\zyvo\check_refs.py (R.id/string/drawable
+  vs res/) before pushing — no Android SDK locally, so this + XML parse is the
+  pre-flight.
