@@ -162,9 +162,11 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
     }
 
     /** Reveals streamed assistant text a few characters at a time (no jumps). */
+    private boolean revealScheduled;
     private final Runnable revealTick = new Runnable() {
         @Override
         public void run() {
+            revealScheduled = false;
             boolean active = false;
             for (int i = 0; i < items.size(); i++) {
                 ChatItem it = items.get(i);
@@ -184,7 +186,7 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
             }
             if (active) {
                 scrollIfPinned();
-                ui.postDelayed(this, 32);
+                startReveal();
             }
         }
     };
@@ -198,6 +200,33 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
     };
     // the engine streams the user's own prompt back - skip those echoes
     private final ArrayDeque<String> sentTexts = new ArrayDeque<>();
+
+    // partID -> "text" | "reasoning" | "tool" …, so token deltas know their row
+    private final java.util.HashMap<String, String> partTypes = new java.util.HashMap<>();
+    // deltas that arrived before the part announced its type
+    private final java.util.HashMap<String, StringBuilder> pendingDeltas = new java.util.HashMap<>();
+    // thought rows that got new tokens; flushed at most every 60 ms
+    private final java.util.LinkedHashSet<ChatItem> dirtyThoughts = new java.util.LinkedHashSet<>();
+    private boolean thoughtScheduled;
+    private final Runnable thoughtFlush = new Runnable() {
+        @Override
+        public void run() {
+            thoughtScheduled = false;
+            if (dirtyThoughts.isEmpty()) return;
+            for (ChatItem it : dirtyThoughts) {
+                int idx = items.indexOf(it);
+                if (idx >= 0) adapter.notifyItemChanged(idx);
+            }
+            dirtyThoughts.clear();
+            scrollIfPinned();
+        }
+    };
+
+    private void scheduleThoughtFlush() {
+        if (thoughtScheduled) return;
+        thoughtScheduled = true;
+        ui.postDelayed(thoughtFlush, 60);
+    }
 
     private SessionAdapter sessionAdapter;
 
@@ -886,6 +915,8 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
                 if (props.has("part") && props.get("part").isJsonObject()) {
                     handlePart(props.getAsJsonObject("part"));
                 }
+            } else if ("message.part.delta".equals(type)) {
+                handlePartDelta(props);
             } else if ("message.updated".equals(type)) {
                 JsonObject info = props.has("info") && props.get("info").isJsonObject()
                         ? props.getAsJsonObject("info") : props;
@@ -969,9 +1000,11 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
                 item = ChatItem.assistant(pid);
                 addItem(item);
             }
-            item.fullText = text;
+            // the end-of-part snapshot is authoritative, but never truncate what
+            // the token deltas already streamed in
+            if (text.length() >= item.fullText.length()) item.fullText = text;
             turnAssistantKey = pid;
-            if (item.shown > text.length()) item.shown = 0;
+            if (item.shown > item.fullText.length()) item.shown = 0;
             if (item.shown == 0) item.text = "";
             startReveal();
             rebind(item);
@@ -1043,14 +1076,23 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
             rebind(item);
         } else if ("reasoning".equals(ptype)) {
             String text = str(part, "text");
-            if (TextUtils.isEmpty(text)) return;
             ChatItem item = byKey.get(pid);
             if (item == null) {
+                // reasoning-start arrives with empty text — create the row NOW so
+                // the token deltas that follow have a home (this is what makes
+                // "Thinking" stream smoothly instead of popping in at the end).
                 item = ChatItem.thought(pid);
                 item.expanded = false;
+                item.streaming = true;
+                item.startMs = System.currentTimeMillis();
                 addItem(item);
+                removeWorking();
             }
-            item.text = text.length() > 6000 ? text.substring(0, 6000) : text;
+            // the snapshot is authoritative once it is at least as long as the
+            // text the deltas already accumulated
+            if (!TextUtils.isEmpty(text) && text.length() >= item.text.length()) {
+                item.text = text.length() > 6000 ? text.substring(0, 6000) : text;
+            }
             String title = thoughtTitle(item.text);
             if (!title.isEmpty()) item.title = title;
 
@@ -1064,6 +1106,62 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
                 item.durationMs = Math.max(0, end - item.startMs);
             }
             rebind(item);
+        }
+    }
+
+    /** One streamed chunk of reasoning or answer text. */
+    private void handlePartDelta(JsonObject props) {
+        String sid = str(props, "sessionID");
+        if (sessionId != null && !sid.isEmpty() && !sessionId.equals(sid)) return;
+        String pid = str(props, "partID");
+        if (TextUtils.isEmpty(pid)) return;
+        if (!"text".equals(str(props, "field"))) return;
+        String delta = str(props, "delta");
+        if (TextUtils.isEmpty(delta)) return;
+        lastSignalMs = System.currentTimeMillis();
+
+        String ptype = partTypes.get(pid);
+        if (TextUtils.isEmpty(ptype)) {
+            pendingDeltas.computeIfAbsent(pid, k -> new StringBuilder()).append(delta);
+            return;
+        }
+        applyDelta(pid, str(props, "messageID"), ptype, delta);
+    }
+
+    /** Appends streamed text to the row that owns the part. */
+    private void applyDelta(String pid, String mid, String ptype, String delta) {
+        if ("user".equals(messageRoles.get(mid))) return;
+
+        ChatItem item = byKey.get(pid);
+        if (item == null) {
+            if ("reasoning".equals(ptype)) {
+                item = ChatItem.thought(pid);
+                item.expanded = false;
+                item.streaming = true;
+                item.startMs = System.currentTimeMillis();
+                addItem(item);
+                removeWorking();
+            } else if ("text".equals(ptype)) {
+                finishThoughts();
+                item = ChatItem.assistant(pid);
+                addItem(item);
+                turnAssistantKey = pid;
+            } else {
+                return;
+            }
+        }
+
+        if (item.kind == ChatItem.THOUGHT) {
+            item.text = (item.text == null ? "" : item.text) + delta;
+            if (item.text.length() > 6000) item.text = item.text.substring(0, 6000);
+            String title = thoughtTitle(item.text);
+            if (!title.isEmpty()) item.title = title;
+            dirtyThoughts.add(item);
+            scheduleThoughtFlush();
+        } else {
+            item.fullText = (item.fullText == null ? "" : item.fullText) + delta;
+            if (item.shown == 0) item.text = "";
+            startReveal();
         }
     }
 
@@ -1419,6 +1517,9 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
 
     /** Stops every still-streaming thought row (reasoning done for this turn). */
     private void finishThoughts() {
+        ui.removeCallbacks(thoughtFlush);
+        thoughtScheduled = false;
+        dirtyThoughts.clear();
         for (int i = 0; i < items.size(); i++) {
             ChatItem item = items.get(i);
             if (item.kind == ChatItem.THOUGHT && item.streaming) {
@@ -1457,6 +1558,11 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
         items.clear();
         byKey.clear();
         messageRoles.clear();
+        partTypes.clear();
+        pendingDeltas.clear();
+        dirtyThoughts.clear();
+        thoughtScheduled = false;
+        revealScheduled = false;
         adapter.notifyDataSetChanged();
         setBusy(false);
         updateEmpty();
@@ -1475,6 +1581,11 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
         items.clear();
         byKey.clear();
         messageRoles.clear();
+        partTypes.clear();
+        pendingDeltas.clear();
+        dirtyThoughts.clear();
+        thoughtScheduled = false;
+        revealScheduled = false;
         adapter.notifyDataSetChanged();
         setBusy(false);
         updateEmpty();
@@ -1632,6 +1743,9 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
                     if (replayTokens > 0) ctxTokens = replayTokens;
                     items.clear();
                     byKey.clear();
+                    partTypes.clear();
+                    pendingDeltas.clear();
+                    dirtyThoughts.clear();
                     for (ChatItem ci : rebuilt) {
                         items.add(ci);
                         byKey.put(ci.key, ci);
@@ -1668,7 +1782,14 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
             for (JsonElement pe : parts) {
                 if (!pe.isJsonObject()) continue;
                 JsonObject part = pe.getAsJsonObject();
-                String ptype = str(part, "type");
+        String ptype = str(part, "type");
+        if (!TextUtils.isEmpty(ptype)) partTypes.put(pid, ptype);
+        // deltas can overtake the first snapshot on a slow link — replay them now
+        StringBuilder pend = pendingDeltas.remove(pid);
+        if (pend != null && !TextUtils.isEmpty(ptype)) {
+            applyDelta(pid, str(part, "messageID"), ptype, pend.toString());
+        }
+
                 String pid = str(part, "id");
 
                 if ("text".equals(ptype)) {
@@ -1801,13 +1922,15 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
     }
 
     private void startReveal() {
-        ui.removeCallbacks(revealTick);
+        if (revealScheduled) return; // never postpone a tick that is already queued
+        revealScheduled = true;
         ui.postDelayed(revealTick, 32);
     }
 
     /** Shows the remaining text immediately (turn finished). */
     private void flushReveal() {
         ui.removeCallbacks(revealTick);
+        revealScheduled = false;
         for (int i = 0; i < items.size(); i++) {
             ChatItem it = items.get(i);
             if (it.kind != ChatItem.ASSISTANT || it.fullText == null) continue;

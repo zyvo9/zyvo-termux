@@ -67,6 +67,7 @@
     <string name="queued_fmt">Queued · %1$s</string>
     <string name="tap_expand">Tap to expand</string>
     <string name="tap_collapse">Tap to collapse</string>
+    <string name="lines_tap_expand">%1$d lines · tap to expand</string>
     <string name="thinking">Thinking</string>
     <string name="thinking_of">Thinking: %1$s</string>
     <string name="thought">Thought</string>

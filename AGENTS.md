@@ -139,3 +139,26 @@ main CSS `out/renderer/assets/styles-NK68EN_n.css`, 480KB, 59 keyframes).
   candidate). mdns discovery is often empty — don't wait on it.
 - Install: `adb -s <ip:port> install -r -d <apk>`; screenshot:
   `shell screencap -p /sdcard/x.png` then `pull`.
+
+## 2026-11-14 (later) — Grok/ChatGPT-class UI port (apk-36/37)
+- Source study: Grok 1.2.56 xapk (ai.x.grok, minSdk 32 -> CANNOT install on the
+  Android-12 phone, so no live shots). 100% Compose, R8-renamed; tokens taken from
+  Play Store screenshots + strings. Full write-up: `design/grok-study/NOTES.md`.
+- Grok's 3 menus = top tabs **Ask / Imagine / Build** (white active label + 16dp
+  underline), circular hamburger left, circular new-chat right, pure-black bg,
+  user bubble #111113 r22, **assistant = plain text, no bubble**, composer
+  #19191B r26 with + / mode pill / white send pill. Font = Chirp (proprietary)
+  -> we bundle **Inter 400/500/600** (`res/font/inter.xml`).
+- Ported: top tabs **Chat / Terminal / Settings** (Terminal/Settings open the
+  Termux activities), new tokens in `values-night/zyvo_colors.xml` (bg #0A0A0B,
+  card #16171A, text #ECEDEE / #9A9CA3), `Theme.Zyvo.Chat` in
+  `values/zyvo_styles.xml` (Inter + bg window), user bubble r22 16sp,
+  assistant 16sp/lineSpacing 6dp, composer r26.
+- Gotcha: removing a view from a layout breaks `R.id` in Java at compile time —
+  after the top-bar rewrite, `title`/`top_engine_dot`/`model_chip` lookups
+  became null assignments (build 36 javac failure, fixed in 68efb12).
+- PC tooling for this: REA 6.7.0 (`%APPDATA%\npm\rea.cmd`) + jadx-headless-mcp
+  0.7.1 JAR at `~/.local/share/rea/android/`; jadx CLI at `C:\Users\Admin\Tools\jadx`;
+  apktool 2.11.1 at `C:\Users\Admin\Tools\apktool`. REA `load_apk` with full
+  resources OOMs on this 3.4GB laptop -> use `jadx --no-res --single-class <cls>`
+  or apktool smali + grep.

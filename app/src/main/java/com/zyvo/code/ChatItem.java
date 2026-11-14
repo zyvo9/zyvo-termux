@@ -48,6 +48,8 @@ public final class ChatItem {
     public boolean animated = false;
     public boolean expanded = false;
     public boolean full = false;
+    /** The `+N −N` chip was tapped — show the changed lines inline. */
+    public boolean showDiff = false;
     public boolean error = false;
     /** Tool cards belonging to one "Worked for ..." summary share a group. */
     public int group = 0;

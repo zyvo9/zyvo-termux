@@ -343,9 +343,24 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
         }
 
         boolean hasBody = !TextUtils.isEmpty(item.text);
-        boolean showBody = hasBody && item.expanded;
+        boolean showBody = hasBody && (item.expanded || item.streaming);
         h.body.setVisibility(showBody ? View.VISIBLE : View.GONE);
-        if (showBody) markwon.setMarkdown(h.body, item.text);
+        if (showBody) {
+            if (item.streaming) {
+                // live tail of the reasoning tokens — plain text, no markdown parse
+                h.body.setText(tail(item.text, 2));
+                h.body.setMaxLines(2);
+                h.body.setEllipsize(TextUtils.TruncateAt.START);
+                h.body.setTextColor(ContextCompat.getColor(ctx, R.color.text_disabled));
+                h.body.setTextSize(12f);
+            } else {
+                h.body.setMaxLines(Integer.MAX_VALUE);
+                h.body.setEllipsize(null);
+                h.body.setTextSize(13f);
+                h.body.setTextColor(ContextCompat.getColor(ctx, R.color.text_secondary));
+                markwon.setMarkdown(h.body, item.text);
+            }
+        }
 
         boolean toggleable = !item.streaming && hasBody;
         h.header.setOnClickListener(toggleable ? v -> {
@@ -466,47 +481,95 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
         h.command.setTextColor(ContextCompat.getColor(ctx,
                 failed ? R.color.danger : R.color.text_disabled));
 
+        // --- +N −N chip: tap to reveal the changed lines right here
+        int add = 0;
+        int del = 0;
         if (!TextUtils.isEmpty(item.diff)) {
-            bindDiff(h, item.diff);
+            int[] c = diffCounts(item.diff);
+            add = c[0];
+            del = c[1];
+        }
+        boolean hasDiff = add + del > 0;
+        if (hasDiff) {
+            h.diff.setText(diffLabel(add, del));
+            h.diff.setVisibility(View.VISIBLE);
+            h.diff.setClickable(true);
         } else if (item.liveLines > 0) {
             h.diff.setText("+" + item.liveLines);
             h.diff.setTextColor(ContextCompat.getColor(ctx, R.color.ok));
             h.diff.setVisibility(View.VISIBLE);
+            h.diff.setClickable(false);
         } else {
             h.diff.setVisibility(View.GONE);
         }
 
+        // --- output: 1 line collapsed, 40 lines open, everything when full
         boolean hasOutput = !TextUtils.isEmpty(item.output);
+        int total = hasOutput ? countLines(item.output) : 0;
         boolean showOutput = hasOutput && (item.expanded || failed || running);
-        int maxLines = isShell(item.toolName, item.command) ? 10 : 3;
-        boolean overflow = hasOutput && countLines(item.output) > maxLines;
-
+        int maxLines = item.full ? 400 : (item.expanded ? 40 : 1);
+        if (running && !item.expanded && total > 3) maxLines = 3; // live tail while it runs
+        if (failed && !item.expanded) maxLines = 6;               // show the error, not one line
         h.output.setVisibility(showOutput ? View.VISIBLE : View.GONE);
         if (showOutput) {
-            h.output.setText(item.full ? item.output : preview(item.output, maxLines));
-            h.output.setMaxLines(item.full ? 400 : maxLines);
+            boolean tailMode = running && !item.expanded && total > 3;
+            String body = tailMode ? tail(item.output, 3)
+                    : (item.full ? cap(item.output, 400) : preview(item.output, maxLines));
+            h.output.setText(body);
+            h.output.setMaxLines(maxLines);
             h.output.setEllipsize(item.full ? null : TextUtils.TruncateAt.END);
         }
 
-        h.expand.setVisibility(showOutput && overflow ? View.VISIBLE : View.GONE);
-        h.expand.setText(ctx.getString(item.full ? R.string.tap_collapse : R.string.tap_expand));
+        boolean overflow = total > maxLines;
+        boolean showMeta = showOutput && (overflow || item.expanded);
+        h.expand.setVisibility(showMeta ? View.VISIBLE : View.GONE);
+        if (showMeta) {
+            h.expand.setText(item.full
+                    ? ctx.getString(R.string.tap_collapse)
+                    : ctx.getString(R.string.lines_tap_expand, total));
+        }
+
+        h.chevron.setRotation(item.expanded ? 180f : 0f);
+
+        // --- diff body (real +/− lines)
+        boolean showDiff = item.showDiff && hasDiff;
+        h.diffBody.setVisibility(showDiff ? View.VISIBLE : View.GONE);
+        if (showDiff) {
+            h.diffBody.setText(diffSpans(item.diff));
+            h.diffBody.setMaxLines(300);
+            h.diffBody.setEllipsize(TextUtils.TruncateAt.END);
+        }
+
+        h.diff.setOnClickListener(hasDiff ? v -> {
+            item.showDiff = !item.showDiff;
+            notifyItemChanged(position);
+        } : null);
+
         h.expand.setOnClickListener(v -> {
-            item.full = !item.full;
+            nextStage(item);
             notifyItemChanged(position);
         });
 
         h.card.setOnClickListener(v -> {
-            item.expanded = !item.expanded;
-            item.full = false;
+            nextStage(item);
             notifyItemChanged(position);
         });
     }
 
-    private void bindDiff(ToolVH h, String diff) {
-        if (TextUtils.isEmpty(diff)) {
-            h.diff.setVisibility(View.GONE);
-            return;
+    /** 1 line → 40 lines → everything → back to 1 line. */
+    private static void nextStage(ChatItem item) {
+        if (!item.expanded) {
+            item.expanded = true;
+            item.full = false;
+        } else if (!item.full) {
+            item.full = true;
+        } else {
+            item.expanded = false;
+            item.full = false;
         }
+    }
+
+    private static int[] diffCounts(String diff) {
         int add = 0;
         int del = 0;
         for (String line : diff.split("\n")) {
@@ -514,10 +577,10 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
             if (line.startsWith("+")) add++;
             else if (line.startsWith("-")) del++;
         }
-        if (add == 0 && del == 0) {
-            h.diff.setVisibility(View.GONE);
-            return;
-        }
+        return new int[]{add, del};
+    }
+
+    private SpannableString diffLabel(int add, int del) {
         SpannableString span = new SpannableString(
                 (add > 0 ? " +" + add : "") + (del > 0 ? " −" + del : ""));
         if (add > 0) {
@@ -529,8 +592,35 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
             span.setSpan(new ForegroundColorSpan(ContextCompat.getColor(ctx, R.color.danger)),
                     from, span.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         }
-        h.diff.setText(span);
-        h.diff.setVisibility(View.VISIBLE);
+        return span;
+    }
+
+    /** The changed lines themselves: added green, removed red, hunk headers dim. */
+    private CharSequence diffSpans(String diff) {
+        android.text.SpannableStringBuilder sb = new android.text.SpannableStringBuilder();
+        int colorAdd = ContextCompat.getColor(ctx, R.color.ok);
+        int colorDel = ContextCompat.getColor(ctx, R.color.danger);
+        int colorCtx = ContextCompat.getColor(ctx, R.color.text_disabled);
+        int lines = 0;
+        for (String line : diff.split("\n")) {
+            if (lines >= 300) {
+                sb.append("…");
+                break;
+            }
+            if (line.startsWith("+++") || line.startsWith("---")) continue;
+            int start = sb.length();
+            sb.append(line);
+            int color;
+            if (line.startsWith("@@")) color = ContextCompat.getColor(ctx, R.color.text_secondary);
+            else if (line.startsWith("+")) color = colorAdd;
+            else if (line.startsWith("-")) color = colorDel;
+            else color = colorCtx;
+            sb.setSpan(new ForegroundColorSpan(color), start, sb.length(),
+                    Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            sb.append('\n');
+            lines++;
+        }
+        return sb;
     }
 
     private static int countLines(String s) {
@@ -549,6 +639,22 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
             sb.append(lines[i]);
         }
         return sb.toString();
+    }
+
+    /** Last {@code n} lines — what a running command is printing right now. */
+    private static String tail(String s, int n) {
+        String[] lines = s.split("\n", -1);
+        if (lines.length <= n) return s;
+        StringBuilder sb = new StringBuilder();
+        for (int i = lines.length - n; i < lines.length; i++) {
+            if (sb.length() > 0) sb.append('\n');
+            sb.append(lines[i]);
+        }
+        return sb.toString();
+    }
+
+    private static String cap(String s, int maxLines) {
+        return preview(s, maxLines);
     }
 
     private static String firstLine(String s) {
@@ -751,6 +857,8 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
         final TextView diff;
         final TextView output;
         final TextView expand;
+        final TextView diffBody;
+        final ImageView chevron;
         final View sweep;
         android.animation.ObjectAnimator sweepAnim;
 
@@ -764,6 +872,8 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
             diff = v.findViewById(R.id.diff);
             output = v.findViewById(R.id.output);
             expand = v.findViewById(R.id.expand);
+            diffBody = v.findViewById(R.id.diff_body);
+            chevron = v.findViewById(R.id.chevron);
             sweep = v.findViewById(R.id.sweep);
             spinner.setText(ChatAdapter.FRAMES[0]);
         }
