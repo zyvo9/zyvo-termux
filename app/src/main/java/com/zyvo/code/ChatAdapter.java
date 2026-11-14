@@ -50,6 +50,7 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
     private static final int V_THOUGHT = 4;
     private static final int V_WORKING = 5;
     private static final int V_TODO = 6;
+    private static final int V_NOTICE = 7;
 
     static final String[] FRAMES = {"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"};
 
@@ -112,6 +113,8 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
                 return V_WORKING;
             case ChatItem.TODO:
                 return V_TODO;
+            case ChatItem.NOTICE:
+                return V_NOTICE;
             default:
                 return V_ASSISTANT;
         }
@@ -139,6 +142,9 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
         if (viewType == V_TODO) {
             return new TodoVH(inf.inflate(R.layout.item_todo, parent, false));
         }
+        if (viewType == V_NOTICE) {
+            return new NoticeVH(inf.inflate(R.layout.item_notice, parent, false));
+        }
         return new MessageVH(inf.inflate(R.layout.item_message_assistant, parent, false));
     }
 
@@ -157,6 +163,8 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
             bindThought((ThoughtVH) holder, item, position);
         } else if (holder instanceof TodoVH) {
             bindTodo((TodoVH) holder, item);
+        } else if (holder instanceof NoticeVH) {
+            bindNotice((NoticeVH) holder, item);
         }
     }
 
@@ -659,6 +667,42 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
         WorkingVH(@NonNull View v) {
             super(v);
             text = v.findViewById(R.id.working_text);
+        }
+    }
+
+    static final class NoticeVH extends RecyclerView.ViewHolder {
+        final TextView title;
+        final TextView body;
+        final TextView retry;
+
+        NoticeVH(@NonNull View v) {
+            super(v);
+            title = v.findViewById(R.id.notice_title);
+            body = v.findViewById(R.id.notice_body);
+            retry = v.findViewById(R.id.notice_retry);
+        }
+    }
+
+    /** Fragment hook so a notice can offer "Retry" without knowing about items. */
+    public interface NoticeAction {
+        void onRetry();
+    }
+
+    private NoticeAction noticeAction;
+
+    public void setNoticeAction(NoticeAction action) {
+        this.noticeAction = action;
+    }
+
+    private void bindNotice(NoticeVH h, ChatItem item) {
+        animateIn(h.itemView, item);
+        h.title.setText(item.title);
+        h.body.setText(item.text);
+        if (noticeAction != null) {
+            h.retry.setVisibility(View.VISIBLE);
+            h.retry.setOnClickListener(v -> noticeAction.onRetry());
+        } else {
+            h.retry.setVisibility(View.GONE);
         }
     }
 

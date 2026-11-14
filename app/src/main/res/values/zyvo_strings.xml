@@ -57,6 +57,13 @@
     <string name="tasks_title">Tasks</string>
     <string name="queued_cancel_desc">Cancel queued message</string>
     <string name="stopping">Stopping…</string>
+    <string name="retry_nothing">Nothing to retry yet</string>
+    <string name="notice_quota_title">Free quota reached</string>
+    <string name="notice_quota_body">The free model lane hit its daily request limit. It resets automatically — zyvo keeps retrying and switches lanes. If it stays stuck, switch mobile data / Wi-Fi (fresh IP) and tap Retry.</string>
+    <string name="notice_auth_title">Model key rejected</string>
+    <string name="notice_auth_body">The lane key was refused (401). Open Settings → check the API key, then tap Retry.</string>
+    <string name="notice_stall_title">No answer from the model</string>
+    <string name="notice_stall_body">Most likely the free lane is rate-limited. zyvo retries on its own — switch mobile data / Wi-Fi for a fresh IP, then tap Retry. Engine logs (drawer) has the raw output.</string>
     <string name="queued_fmt">Queued · %1$s</string>
     <string name="tap_expand">Tap to expand</string>
     <string name="tap_collapse">Tap to collapse</string>

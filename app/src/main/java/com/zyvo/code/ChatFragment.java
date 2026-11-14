@@ -89,6 +89,8 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
     private String turnAssistantKey;
     /** Newest assistant message has time.completed (real end-of-turn signal). */
     private boolean lastAssistantDone = true;
+    /** Last prompt the user sent — the Retry button on notice cards re-sends it. */
+    private String lastUserText;
 
     // only auto-scroll while the user is pinned to the bottom of the transcript
     private boolean pinnedToBottom = true;
@@ -265,6 +267,7 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
         workingBar = v.findViewById(R.id.working_bar);
         workingBarText = v.findViewById(R.id.working_text);
         workingSpinner = v.findViewById(R.id.working_spinner);
+        adapter.setNoticeAction(this::retryLast);
         queuedBar = v.findViewById(R.id.queued_bar);
         queuedText = v.findViewById(R.id.queued_text);
         View queuedCancel = v.findViewById(R.id.queued_cancel);
@@ -1122,6 +1125,7 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
         }
 
         input.setText("");
+        lastUserText = text;
         addItem(ChatItem.user(text));
         rememberSent(text);
         banner.setVisibility(View.GONE);
@@ -1297,19 +1301,18 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
     private void failTurn(String reason) {
         finishThoughts();
         removeWorking();
+        markTurnDuration();
         setBusy(false);
-        addItem(ChatItem.error(reason + "\n\n"
-                + "Most likely the free lane hit its quota (rate limit).\n"
-                + "Fix: switch mobile data / Wi-Fi for a fresh IP, then send again.\n"
-                + "Drawer → Engine logs shows the raw engine output."));
-        showBanner("Model did not answer — see Engine logs", false);
+        addNotice(getString(R.string.notice_stall_title),
+                reason + "\n\n" + getString(R.string.notice_stall_body));
+        showBanner(getString(R.string.notice_stall_title), false);
         if (sessionId != null) {
             final String sid = sessionId;
             io.execute(() -> api.abort(sid));
         }
     }
 
-    /** Shows a real engine/provider error as an error card (never silently). */
+    /** Shows a real engine/provider error as a card the user can act on. */
     private void reportError(String raw) {
         String text = friendlyError(raw);
         long now = System.currentTimeMillis();
@@ -1318,9 +1321,44 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
         lastReportedAt = now;
         finishThoughts();
         removeWorking();
+        markTurnDuration();
         setBusy(false);
-        addItem(ChatItem.error(text));
-        showBanner("Engine reported an error — see chat", false);
+        String low = raw == null ? "" : raw.toLowerCase(Locale.ROOT);
+        if (isQuotaError(low)) {
+            addNotice(getString(R.string.notice_quota_title), getString(R.string.notice_quota_body));
+            showBanner(getString(R.string.notice_quota_title), false);
+        } else if (low.contains("unauthorized") || low.contains("401")
+                || low.contains("invalid api key")) {
+            addNotice(getString(R.string.notice_auth_title), getString(R.string.notice_auth_body));
+            showBanner(getString(R.string.notice_auth_title), false);
+        } else {
+            addItem(ChatItem.error(text));
+            showBanner("Engine reported an error — see chat", false);
+        }
+    }
+
+    private static boolean isQuotaError(String low) {
+        return low.contains("freeusagelimit") || low.contains("usage limit")
+                || low.contains("rate limit") || low.contains("rate-limit")
+                || low.contains("429") || low.contains("quota")
+                || low.contains("limit reached") || low.contains("too many requests");
+    }
+
+    /** Adds an amber problem card (retry re-sends the last prompt). */
+    private void addNotice(String title, String body) {
+        addItem(ChatItem.notice(title, body));
+    }
+
+    /** Retry button on a notice card: send the last prompt again. */
+    private void retryLast() {
+        if (TextUtils.isEmpty(lastUserText)) {
+            UiUtil.toast(requireContext(), getString(R.string.retry_nothing));
+            return;
+        }
+        if (busy) return;
+        input.setText(lastUserText);
+        input.setSelection(lastUserText.length());
+        sendMessage();
     }
 
     /** Turns provider JSON into a plain-language hint plus the raw text. */

@@ -11,6 +11,8 @@ public final class ChatItem {
     public static final int THOUGHT = 5;
     public static final int WORKING = 6;
     public static final int TODO = 7;
+    /** Amber card for engine problems the user must see (quota, auth, stall). */
+    public static final int NOTICE = 8;
 
     /** One row of the engine's todo list. */
     public static final class Todo {
@@ -124,6 +126,17 @@ public final class ChatItem {
         i.label = "ERROR";
         i.text = text;
         i.error = true;
+        i.timeMs = System.currentTimeMillis();
+        return i;
+    }
+
+    /** Visible problem card; {@code text} is the body, {@code title} the headline. */
+    public static ChatItem notice(String title, String body) {
+        ChatItem i = new ChatItem();
+        i.kind = NOTICE;
+        i.key = "n-" + System.nanoTime();
+        i.title = title == null ? "" : title;
+        i.text = body == null ? "" : body;
         i.timeMs = System.currentTimeMillis();
         return i;
     }
