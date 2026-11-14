@@ -166,6 +166,7 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
 
     /** Reveals streamed assistant text a few characters at a time (no jumps). */
     private boolean revealScheduled;
+    private boolean scrollQueued;
     private final Runnable revealTick = new Runnable() {
         @Override
         public void run() {
@@ -176,23 +177,44 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
                 if (it.kind != ChatItem.ASSISTANT) continue;
                 if (it.fullText == null || it.shown >= it.fullText.length()) continue;
                 int backlog = it.fullText.length() - it.shown;
-                int step = Math.max(3, backlog / 8);
+                // drain the backlog in ~4 frames: fast enough to keep up with the
+                // model, slow enough that words still arrive one by one
+                int step = Math.max(2, (backlog + 3) / 4);
                 int next = Math.min(it.fullText.length(), it.shown + step);
-                while (next < it.fullText.length()
-                        && !Character.isWhitespace(it.fullText.charAt(next))) {
-                    next++;
+                if (backlog > 32) {
+                    // big burst - snap to the next space so words never split
+                    while (next < it.fullText.length()
+                            && !Character.isWhitespace(it.fullText.charAt(next))) {
+                        next++;
+                    }
                 }
                 it.shown = next;
                 it.text = it.fullText.substring(0, next);
-                adapter.notifyItemChanged(i);
+                if (it.shown >= it.fullText.length()) {
+                    // finished: one full bind for markdown, copy button, duration
+                    adapter.notifyItemChanged(i);
+                } else {
+                    // payload bind: only the TextView moves, no re-measure of the row
+                    adapter.notifyItemChanged(i, ChatAdapter.PAYLOAD_STREAM);
+                }
                 active = true;
             }
             if (active) {
-                scrollIfPinned();
+                scrollIfPinnedThrottled();
                 startReveal();
             }
         }
     };
+
+    /** Scroll at most every 60 ms while text streams; 60 calls/s made it bounce. */
+    private void scrollIfPinnedThrottled() {
+        if (!pinnedToBottom || scrollQueued) return;
+        scrollQueued = true;
+        ui.postDelayed(() -> {
+            scrollQueued = false;
+            scrollIfPinned();
+        }, 60);
+    }
     private boolean autoScrolling;
     private final Runnable autoScrollDone = new Runnable() {
         @Override
@@ -218,7 +240,7 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
             if (dirtyThoughts.isEmpty()) return;
             for (ChatItem it : dirtyThoughts) {
                 int idx = items.indexOf(it);
-                if (idx >= 0) adapter.notifyItemChanged(idx);
+                if (idx >= 0) adapter.notifyItemChanged(idx, ChatAdapter.PAYLOAD_STREAM);
             }
             dirtyThoughts.clear();
             scrollIfPinned();
@@ -1173,7 +1195,9 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
 
         if (item.kind == ChatItem.THOUGHT) {
             item.text = (item.text == null ? "" : item.text) + delta;
-            if (item.text.length() > 6000) item.text = item.text.substring(0, 6000);
+            // keep the TAIL, not the head: the live preview follows the newest
+            // words, so a long reasoning stream never freezes on old text
+            if (item.text.length() > 6000) item.text = item.text.substring(item.text.length() - 6000);
             String title = thoughtTitle(item.text);
             if (!title.isEmpty()) item.title = title;
             dirtyThoughts.add(item);
@@ -1983,7 +2007,7 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
     private void startReveal() {
         if (revealScheduled) return; // never postpone a tick that is already queued
         revealScheduled = true;
-        ui.postDelayed(revealTick, 32);
+        ui.postDelayed(revealTick, 16);
     }
 
     /** Shows the remaining text immediately (turn finished). */

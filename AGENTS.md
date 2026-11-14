@@ -218,3 +218,20 @@ main CSS `out/renderer/assets/styles-NK68EN_n.css`, 480KB, 59 keyframes).
   https://racing-nut-license-specialist.trycloudflare.com/zyvo-40.apk
 - User preference (2026-11-14): the app's look must follow the zyvo CLI itself (warm amber, block/inline tool rows) - NOT a Grok clone. Grok study was only a layout reference.
 - Design split (final, 2026-11-14): SHELL from Grok (top tabs + underline, circular hamburger/new-chat, user bubble r22 / assistant plain text, r26 composer, Inter, empty-state chips, FAB) + CONTENT from the CLI (amber coffee palette, block/inline tool rows, reasoning header, mono code, +N -N). Not Grok's neutral #080808, not Grok's voice-first Speak pill.
+
+## 2026-11-14 (apk-41) - Grok-style motion pass
+- Tabs now share ONE underline (tab_row + tab_underline in fragment_chat.xml);
+  each tab keeps an 8dp spacer instead of its own 3dp view. ChatFragment
+  moveUnderline(tab, animate) centres it under the tapped tab, 220ms decelerate;
+  underline colour = @color/accent (amber).
+- Empty/home screen entrance: animateEmpty() staggers empty_title, empty_hint,
+  chip1..3 with alpha 0->1 + 12dp rise, 50ms apart, 300ms each.
+- Thinking shimmer: ThoughtVH.startShimmer() runs a LinearGradient highlight
+  across the "Thinking..." title (ValueAnimator 1250ms infinite, Matrix
+  translate, dim #8A8172 -> bright #F2EDE2); stopped on completion/recycle.
+- Small feedback: send button scales to 0.9 on touch-down; scroll-to-bottom FAB
+  pops in with OvershootInterpolator 1.3.
+- All of it respects animator_duration_scale via animationsOn().
+- Existing motion (kept): fadeIn rows (170ms, 6dp rise), word-by-word reveal
+  32ms, braille tool spinner, sweep band on running tool, working-bar fade.
+- Build 41 green; APK served at .../zyvo-41.apk.

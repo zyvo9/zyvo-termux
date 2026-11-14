@@ -54,6 +54,14 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
 
     static final String[] FRAMES = {"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"};
 
+    /**
+     * Payload for a stream tick: only the text of this row changed. RecyclerView
+     * hands it to the 3-arg onBindViewHolder so we can skip markdown parsing,
+     * the entrance animation, action-bar visibility and a full re-measure on
+     * every frame.
+     */
+    public static final Object PAYLOAD_STREAM = new Object();
+
     private final Context ctx;
     private final List<ChatItem> items;
     private final Markwon markwon;
@@ -146,6 +154,58 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
             return new NoticeVH(inf.inflate(R.layout.item_notice, parent, false));
         }
         return new MessageVH(inf.inflate(R.layout.item_message_assistant, parent, false));
+    }
+
+    @Override
+    public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position,
+                                 @NonNull List<Object> payloads) {
+        if (!payloads.isEmpty() && payloads.contains(PAYLOAD_STREAM)) {
+            ChatItem item = items.get(position);
+            if (holder instanceof MessageVH) {
+                bindStreamText((MessageVH) holder, item);
+                return;
+            }
+            if (holder instanceof ThoughtVH) {
+                bindStreamThought((ThoughtVH) holder, item, position);
+                return;
+            }
+        }
+        super.onBindViewHolder(holder, position, payloads);
+    }
+
+    /** Cheap path: only the growing text (and the hidden footer) changes. */
+    private void bindStreamText(MessageVH h, ChatItem item) {
+        if (item.kind != ChatItem.ASSISTANT) {
+            bindMessage(h, item);
+            return;
+        }
+        boolean revealing = item.fullText != null && item.fullText.length() > item.shown;
+        if (!revealing) {
+            // stream finished - one full bind so markdown, copy and duration land
+            bindMessage(h, item);
+            return;
+        }
+        h.text.setText(plainMarkdown(item.text));
+        if (h.time.getText().length() > 0) h.time.setText("");
+        if (h.actions.getVisibility() == View.VISIBLE) h.actions.setVisibility(View.GONE);
+    }
+
+    /** Cheap path for a thinking row: only the live 2-line tail moves. */
+    private void bindStreamThought(ThoughtVH h, ChatItem item, int position) {
+        if (item.kind != ChatItem.THOUGHT || !item.streaming) {
+            bindThought(h, item, position);
+            return;
+        }
+        if (TextUtils.isEmpty(item.text)) return;
+        if (h.body.getVisibility() != View.VISIBLE) {
+            h.body.setVisibility(View.VISIBLE);
+            h.body.setMaxLines(2);
+            h.body.setEllipsize(TextUtils.TruncateAt.START);
+            h.body.setTextColor(ContextCompat.getColor(ctx, R.color.text_disabled));
+            h.body.setTextSize(12f);
+        }
+        String live = tail(item.text, 2);
+        if (!live.contentEquals(h.body.getText())) h.body.setText(live);
     }
 
     @Override
@@ -678,14 +738,14 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
 
     /** Last {@code n} lines — what a running command is printing right now. */
     private static String tail(String s, int n) {
-        String[] lines = s.split("\n", -1);
-        if (lines.length <= n) return s;
-        StringBuilder sb = new StringBuilder();
-        for (int i = lines.length - n; i < lines.length; i++) {
-            if (sb.length() > 0) sb.append('\n');
-            sb.append(lines[i]);
+        if (s == null || s.isEmpty()) return "";
+        int idx = s.length();
+        for (int count = 0; count < n; count++) {
+            int nl = s.lastIndexOf('\n', idx - 1);
+            if (nl < 0) return s;
+            idx = nl;
         }
-        return sb.toString();
+        return s.substring(idx + 1);
     }
 
     private static String cap(String s, int maxLines) {
