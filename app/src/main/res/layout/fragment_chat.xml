@@ -5,72 +5,120 @@
     android:orientation="vertical"
     android:background="@color/bg">
 
-    <!-- top bar -->
-    <LinearLayout
+    <!-- top bar: menu · tabs · new chat -->
+    <FrameLayout
         android:layout_width="match_parent"
-        android:layout_height="52dp"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:paddingStart="2dp"
-        android:paddingEnd="8dp"
-        android:background="@color/bg">
+        android:layout_height="56dp"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp">
 
         <ImageButton
             android:id="@+id/btn_sessions"
-            android:layout_width="44dp"
-            android:layout_height="44dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@drawable/ic_menu"
+            android:layout_width="42dp"
+            android:layout_height="42dp"
+            android:layout_gravity="start|center_vertical"
+            android:background="@drawable/bg_circle_button"
             android:contentDescription="@string/sessions"
+            android:padding="11dp"
+            android:src="@drawable/ic_menu"
             android:tint="@color/text_primary" />
 
-        <TextView
-            android:id="@+id/title"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:paddingStart="4dp"
-            android:paddingEnd="8dp"
-            android:ellipsize="end"
-            android:maxLines="1"
-            android:text="@string/app_name"
-            android:textColor="@color/text_primary"
-            android:textSize="15sp"
-            android:textStyle="bold" />
-
-        <View
-            android:id="@+id/top_engine_dot"
-            android:layout_width="8dp"
-            android:layout_height="8dp"
-            android:layout_marginEnd="6dp"
-            android:background="@drawable/bg_status_dot" />
-
-        <TextView
-            android:id="@+id/model_chip"
+        <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:background="@drawable/bg_model_chip"
-            android:ellipsize="end"
-            android:maxLines="1"
-            android:paddingStart="9dp"
-            android:paddingEnd="9dp"
-            android:paddingTop="5dp"
-            android:paddingBottom="5dp"
-            android:text="Big Pickle"
-            android:textColor="@color/secondary_text"
-            android:textSize="10sp"
-            android:textStyle="bold" />
+            android:layout_gravity="center"
+            android:gravity="center"
+            android:orientation="horizontal">
+
+            <LinearLayout
+                android:id="@+id/tab_chat"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:orientation="vertical"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="@font/inter"
+                    android:text="@string/tab_chat"
+                    android:textColor="@color/text_primary"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <View
+                    android:layout_width="16dp"
+                    android:layout_height="3dp"
+                    android:layout_marginTop="5dp"
+                    android:background="@drawable/bg_tab_underline" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/tab_terminal"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:gravity="center"
+                android:orientation="vertical"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="@font/inter"
+                    android:text="@string/tab_terminal"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="16sp" />
+
+                <View
+                    android:layout_width="16dp"
+                    android:layout_height="3dp"
+                    android:layout_marginTop="5dp"
+                    android:background="@drawable/bg_tab_underline"
+                    android:visibility="invisible" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/tab_settings"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:gravity="center"
+                android:orientation="vertical"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="@font/inter"
+                    android:text="@string/tab_settings"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="16sp" />
+
+                <View
+                    android:layout_width="16dp"
+                    android:layout_height="3dp"
+                    android:layout_marginTop="5dp"
+                    android:background="@drawable/bg_tab_underline"
+                    android:visibility="invisible" />
+            </LinearLayout>
+        </LinearLayout>
 
         <ImageButton
             android:id="@+id/btn_new"
-            android:layout_width="44dp"
-            android:layout_height="44dp"
-            android:layout_marginStart="2dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@drawable/ic_add"
+            android:layout_width="42dp"
+            android:layout_height="42dp"
+            android:layout_gravity="end|center_vertical"
+            android:background="@drawable/bg_circle_button"
             android:contentDescription="@string/new_session"
+            android:padding="11dp"
+            android:src="@drawable/ic_lc_pen_line"
             android:tint="@color/text_primary" />
-    </LinearLayout>
+    </FrameLayout>
 
     <!-- engine status strip -->
     <LinearLayout
@@ -130,7 +178,7 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:clipToPadding="false"
-            android:paddingTop="6dp"
+            android:paddingTop="4dp"
             android:paddingBottom="10dp"
             android:scrollbars="none" />
 
@@ -140,55 +188,44 @@
             android:layout_height="match_parent"
             android:orientation="vertical"
             android:gravity="center"
-            android:paddingStart="28dp"
-            android:paddingEnd="28dp"
+            android:paddingStart="24dp"
+            android:paddingEnd="24dp"
             android:visibility="gone">
-
-            <FrameLayout
-                android:layout_width="52dp"
-                android:layout_height="52dp"
-                android:background="@drawable/bg_accent_circle">
-
-                <ImageView
-                    android:layout_width="30dp"
-                    android:layout_height="30dp"
-                    android:layout_gravity="center"
-                    android:src="@drawable/ic_launcher_foreground"
-                    android:tint="@color/on_primary"
-                    android:contentDescription="@null" />
-            </FrameLayout>
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
+                android:fontFamily="@font/inter"
+                android:gravity="center"
                 android:text="@string/empty_chat_title"
                 android:textColor="@color/text_primary"
-                android:textSize="19sp"
+                android:textSize="26sp"
                 android:textStyle="bold" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
+                android:layout_marginTop="8dp"
+                android:fontFamily="@font/inter"
                 android:gravity="center"
                 android:text="@string/empty_chat_hint"
                 android:textColor="@color/text_secondary"
-                android:textSize="12sp" />
+                android:textSize="14sp" />
 
             <TextView
                 android:id="@+id/chip1"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="22dp"
+                android:layout_marginTop="26dp"
                 android:background="@drawable/bg_chip"
-                android:paddingStart="14dp"
-                android:paddingEnd="14dp"
-                android:paddingTop="11dp"
-                android:paddingBottom="11dp"
+                android:fontFamily="@font/inter"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:paddingTop="14dp"
+                android:paddingBottom="14dp"
                 android:text="What files are on my phone?"
                 android:textColor="@color/text_primary"
-                android:textSize="12sp" />
+                android:textSize="14sp" />
 
             <TextView
                 android:id="@+id/chip2"
@@ -196,13 +233,14 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
                 android:background="@drawable/bg_chip"
-                android:paddingStart="14dp"
-                android:paddingEnd="14dp"
-                android:paddingTop="11dp"
-                android:paddingBottom="11dp"
+                android:fontFamily="@font/inter"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:paddingTop="14dp"
+                android:paddingBottom="14dp"
                 android:text="List my Downloads folder"
                 android:textColor="@color/text_primary"
-                android:textSize="12sp" />
+                android:textSize="14sp" />
 
             <TextView
                 android:id="@+id/chip3"
@@ -210,13 +248,14 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
                 android:background="@drawable/bg_chip"
-                android:paddingStart="14dp"
-                android:paddingEnd="14dp"
-                android:paddingTop="11dp"
-                android:paddingBottom="11dp"
+                android:fontFamily="@font/inter"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:paddingTop="14dp"
+                android:paddingBottom="14dp"
                 android:text="How much storage is free?"
                 android:textColor="@color/text_primary"
-                android:textSize="12sp" />
+                android:textSize="14sp" />
         </LinearLayout>
 
         <ProgressBar
@@ -294,8 +333,8 @@
         android:background="@color/bg"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:paddingStart="18dp"
-        android:paddingEnd="18dp"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp"
         android:paddingTop="3dp"
         android:paddingBottom="1dp"
         android:visibility="gone">
@@ -311,9 +350,10 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
+            android:fontFamily="@font/inter"
             android:text="@string/working"
             android:textColor="@color/text_secondary"
-            android:textSize="11sp" />
+            android:textSize="12sp" />
     </LinearLayout>
 
     <!-- composer -->
@@ -323,7 +363,7 @@
         android:orientation="vertical"
         android:paddingStart="12dp"
         android:paddingEnd="12dp"
-        android:paddingTop="6dp"
+        android:paddingTop="4dp"
         android:paddingBottom="12dp"
         android:background="@color/bg">
 
@@ -332,29 +372,29 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:background="@drawable/bg_composer"
-            android:elevation="3dp"
             android:orientation="vertical"
             android:paddingStart="14dp"
-            android:paddingEnd="10dp"
-            android:paddingTop="6dp"
-            android:paddingBottom="10dp">
+            android:paddingEnd="8dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="8dp">
 
             <EditText
                 android:id="@+id/input"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:background="@null"
+                android:fontFamily="@font/inter"
                 android:hint="@string/composer_hint"
                 android:inputType="textMultiLine|textCapSentences"
                 android:maxLines="8"
-                android:minHeight="56dp"
-                android:paddingStart="2dp"
-                android:paddingEnd="2dp"
+                android:minHeight="48dp"
+                android:paddingStart="4dp"
+                android:paddingEnd="4dp"
                 android:paddingTop="12dp"
-                android:paddingBottom="8dp"
+                android:paddingBottom="4dp"
                 android:textColor="@color/text_primary"
                 android:textColorHint="@color/text_disabled"
-                android:textSize="15sp" />
+                android:textSize="16sp" />
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -364,31 +404,32 @@
 
                 <ImageButton
                     android:id="@+id/btn_plus"
-                    android:layout_width="34dp"
-                    android:layout_height="34dp"
-                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:background="@drawable/bg_circle_button"
                     android:contentDescription="@string/new_session"
-                    android:padding="7dp"
+                    android:padding="9dp"
                     android:src="@drawable/ic_add"
-                    android:tint="@color/text_secondary" />
+                    android:tint="@color/text_primary" />
 
                 <TextView
                     android:id="@+id/agent_chip"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="2dp"
+                    android:layout_marginStart="8dp"
                     android:background="@drawable/bg_agent_chip"
                     android:drawableStart="@drawable/ic_spark"
                     android:drawablePadding="4dp"
                     android:drawableTint="@color/accent_on_container"
+                    android:fontFamily="@font/inter"
                     android:gravity="center_vertical"
-                    android:paddingStart="8dp"
-                    android:paddingEnd="9dp"
-                    android:paddingTop="3dp"
-                    android:paddingBottom="3dp"
+                    android:paddingStart="9dp"
+                    android:paddingEnd="10dp"
+                    android:paddingTop="6dp"
+                    android:paddingBottom="6dp"
                     android:text="@string/agent_build"
                     android:textColor="@color/accent_on_container"
-                    android:textSize="9sp"
+                    android:textSize="12sp"
                     android:textStyle="bold" />
 
                 <View
@@ -400,25 +441,26 @@
                     android:id="@+id/composer_model"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginEnd="10dp"
+                    android:layout_marginEnd="8dp"
                     android:drawableEnd="@drawable/ic_chevron_down"
                     android:drawablePadding="3dp"
                     android:drawableTint="@color/text_secondary"
                     android:ellipsize="end"
+                    android:fontFamily="@font/inter"
                     android:gravity="center_vertical"
                     android:maxLines="1"
                     android:maxWidth="140dp"
                     android:text="Big Pickle"
                     android:textColor="@color/text_secondary"
-                    android:textSize="11sp" />
+                    android:textSize="12sp" />
 
                 <ImageButton
                     android:id="@+id/btn_send"
                     android:layout_width="40dp"
                     android:layout_height="40dp"
                     android:background="@drawable/bg_accent_circle"
-                    android:src="@drawable/ic_arrow_up"
                     android:contentDescription="@string/send"
+                    android:src="@drawable/ic_arrow_up"
                     android:tint="@color/on_primary" />
             </LinearLayout>
         </LinearLayout>

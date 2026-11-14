@@ -4,9 +4,9 @@
     android:layout_height="wrap_content"
     android:orientation="vertical"
     android:gravity="end"
-    android:paddingStart="56dp"
-    android:paddingEnd="12dp"
-    android:paddingTop="5dp"
+    android:paddingStart="64dp"
+    android:paddingEnd="16dp"
+    android:paddingTop="6dp"
     android:paddingBottom="3dp">
 
     <TextView
@@ -14,22 +14,24 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:background="@drawable/bg_user_bubble"
-        android:paddingStart="13dp"
-        android:paddingEnd="13dp"
-        android:paddingTop="9dp"
-        android:paddingBottom="9dp"
+        android:fontFamily="@font/inter"
+        android:lineSpacingExtra="3dp"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:paddingTop="10dp"
+        android:paddingBottom="10dp"
         android:textColor="@color/text_primary"
-        android:textSize="14sp"
-        android:lineSpacingExtra="2dp"
-        android:textIsSelectable="true" />
+        android:textIsSelectable="true"
+        android:textSize="16sp" />
 
     <TextView
         android:id="@+id/time"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="3dp"
-        android:layout_marginEnd="3dp"
+        android:layout_marginTop="4dp"
+        android:layout_marginEnd="4dp"
+        android:fontFamily="@font/inter"
         android:textColor="@color/text_disabled"
-        android:textSize="10sp" />
+        android:textSize="11sp" />
 
 </LinearLayout>

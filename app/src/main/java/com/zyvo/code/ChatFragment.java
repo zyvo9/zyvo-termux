@@ -373,6 +373,17 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
 
         v.findViewById(R.id.btn_new).setOnClickListener(view -> newSession());
         v.findViewById(R.id.btn_sessions).setOnClickListener(view -> openSessionsDrawer());
+
+        // top tabs (Grok-style): Chat / Terminal / Settings
+        View tabChat = v.findViewById(R.id.tab_chat);
+        if (tabChat != null) tabChat.setOnClickListener(view -> {
+            pinnedToBottom = true;
+            scrollToBottom();
+        });
+        View tabTerminal = v.findViewById(R.id.tab_terminal);
+        if (tabTerminal != null) tabTerminal.setOnClickListener(view -> openTerminal());
+        View tabSettings = v.findViewById(R.id.tab_settings);
+        if (tabSettings != null) tabSettings.setOnClickListener(view -> openSettings());
         bannerAction.setOnClickListener(view -> {
             showBanner("Starting engine…", false);
             engine.restart();
