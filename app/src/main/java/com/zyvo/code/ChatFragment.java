@@ -260,9 +260,10 @@ public final class ChatFragment extends Fragment implements EngineManager.Listen
         banner = v.findViewById(R.id.engine_banner);
         bannerText = v.findViewById(R.id.engine_text);
         bannerAction = v.findViewById(R.id.engine_action);
-        titleView = v.findViewById(R.id.title);
-        topDot = v.findViewById(R.id.top_engine_dot);
-        modelChip = v.findViewById(R.id.model_chip);
+        // top bar is Grok-style: menu / tabs / new chat — no title, model chip or status dot
+        titleView = null;
+        topDot = null;
+        modelChip = null;
         composerModel = v.findViewById(R.id.composer_model);
         workingBar = v.findViewById(R.id.working_bar);
         workingBarText = v.findViewById(R.id.working_text);
