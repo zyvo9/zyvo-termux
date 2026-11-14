@@ -15,8 +15,26 @@ local `C:\Users\Admin\zyvo-termux`.
 - Local machine has NO Android SDK — CI is the only compiler. Brace-balance check
   before push: `python -c "s=open(f).read(); print(s.count('{')-s.count('}'))"`.
 
-## Current state (2026-11-13, apk-30 = a85bbc0)
-- Motion (P3, our own, reduce-motion aware): rows fade+rise 6dp/170ms once
+## Current state (2026-11-14, apk-32 = 3bae398)
+- Context meter (P4 item 1): `ChatFragment.ctxTokens` = newest assistant
+  `info.tokens` (input + output + cache.read, `tokensOf()`); strip shows
+  `Working 12s · 8.2k ctx` / `Worked for 1m 22s · 12.4k ctx` (`ctxSuffix()`,
+  `fmtTokens()`); replayed on session open from `api.messages()`.
+- Queue (P4 item 2): busy + typed text → send button becomes arrow and QUEUES
+  (`queuedMessage` + `queued_bar` chip above working strip, × cancels);
+  busy + empty input → stop/abort as before (`updateSendIcon()`); on
+  `session.idle` → `sendQueuedIfAny()` re-sends it. Queue cleared on
+  new/open session.
+- Gotcha: zyvo_strings.xml already had `cancel` → duplicate resource breaks
+  `mergeDebugResources`; new string is `queued_cancel_desc`.
+- Device support: minSdk 21, targetSdk 28, compileSdk 36; splits list all ABIs
+  but the engine `libzyvo.so` ships arm64-v8a only → effectively 64-bit ARM
+  Android phones.
+- Wireless adb (2026-11-14): phone shows up as mDNS
+  `adb-Z60plusBD2310070295-7kxTqf._adb-tls-connect._tcp` (user-supplied IP:port
+  changes per toggle; the mDNS serial works without it).
+
+## Earlier state (2026-11-13, apk-30 = a85bbc0)- Motion (P3, our own, reduce-motion aware): rows fade+rise 6dp/170ms once
   (`ChatItem.animated`, `ChatAdapter.animateIn`); running tool rows get a
   brand-blue sweep (`bg_sweep.xml` + `ToolVH.startSweep/stopSweep`, 1.3s,
   cancelled on recycle); `animateLayoutChanges` on tool/thought/todo roots;
